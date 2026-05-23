@@ -1,10 +1,12 @@
 /**
  * NovaMovimentacaoDrawer — Drawer deslizante para adicionar nova movimentação.
  * Design: Ledger Moderno — sobe de baixo, formulário limpo, seleção de tabela primeiro.
+ *
+ * Agora usa categorias customizáveis com aplicação automática de sinais.
  */
 
 import { useState } from "react";
-import { useFinance, GRUPOS_FLUXO, GRUPOS_GIRO, Tabela } from "@/contexts/FinanceContext";
+import { useFinance, Tabela } from "@/contexts/FinanceContext";
 import { hojeISO } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { X, Check } from "lucide-react";
@@ -16,24 +18,22 @@ interface NovaMovimentacaoDrawerProps {
 }
 
 export function NovaMovimentacaoDrawer({ aberto, onFechar }: NovaMovimentacaoDrawerProps) {
-  const { adicionar } = useFinance();
+  const { adicionar, obterCategoriasPorTabela } = useFinance();
 
   const [tabela, setTabela] = useState<Tabela>("fluxo");
   const [data, setData] = useState(hojeISO());
   const [descricao, setDescricao] = useState("");
-  const [grupo, setGrupo] = useState("");
+  const [categoriaId, setCategoriaId] = useState("");
   const [valorStr, setValorStr] = useState("");
-  const [tipoValor, setTipoValor] = useState<"positivo" | "negativo">("positivo");
 
-  const grupos = tabela === "fluxo" ? GRUPOS_FLUXO : GRUPOS_GIRO;
+  const categorias = obterCategoriasPorTabela(tabela);
 
   function resetar() {
     setTabela("fluxo");
     setData(hojeISO());
     setDescricao("");
-    setGrupo("");
+    setCategoriaId("");
     setValorStr("");
-    setTipoValor("positivo");
   }
 
   function fechar() {
@@ -46,8 +46,8 @@ export function NovaMovimentacaoDrawer({ aberto, onFechar }: NovaMovimentacaoDra
       toast.error("Informe a descrição da movimentação.");
       return;
     }
-    if (!grupo) {
-      toast.error("Selecione o grupo.");
+    if (!categoriaId) {
+      toast.error("Selecione a categoria.");
       return;
     }
     const num = parseFloat(valorStr.replace(",", "."));
@@ -55,8 +55,16 @@ export function NovaMovimentacaoDrawer({ aberto, onFechar }: NovaMovimentacaoDra
       toast.error("Informe um valor válido maior que zero.");
       return;
     }
-    const valorFinal = tipoValor === "positivo" ? num : -num;
-    adicionar({ tabela, data, descricao: descricao.trim(), grupo, valor: valorFinal });
+
+    // Valor é sempre positivo; o sinal é determinado pelo tipo da categoria
+    adicionar({
+      tabela,
+      data,
+      descricao: descricao.trim(),
+      categoriaId,
+      valor: num,
+    });
+
     toast.success("Movimentação registrada!");
     fechar();
   }
@@ -106,7 +114,10 @@ export function NovaMovimentacaoDrawer({ aberto, onFechar }: NovaMovimentacaoDra
               {(["fluxo", "giro"] as Tabela[]).map((t) => (
                 <button
                   key={t}
-                  onClick={() => { setTabela(t); setGrupo(""); }}
+                  onClick={() => {
+                    setTabela(t);
+                    setCategoriaId("");
+                  }}
                   className={cn(
                     "py-3 rounded-xl text-sm font-semibold border-2 transition-all duration-150",
                     tabela === t
@@ -147,53 +158,31 @@ export function NovaMovimentacaoDrawer({ aberto, onFechar }: NovaMovimentacaoDra
             />
           </div>
 
-          {/* Grupo */}
+          {/* Categoria */}
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-              Grupo
+              Categoria
             </label>
             <select
-              value={grupo}
-              onChange={(e) => setGrupo(e.target.value)}
+              value={categoriaId}
+              onChange={(e) => setCategoriaId(e.target.value)}
               className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
-              <option value="">Selecione o grupo</option>
-              {grupos.map((g) => (
-                <option key={g} value={g}>{g}</option>
+              <option value="">Selecione a categoria</option>
+              {categorias.map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.emoji} {cat.nome} ({cat.tipo === "credito" ? "+" : "−"})
+                </option>
               ))}
             </select>
           </div>
 
-          {/* Tipo + Valor */}
+          {/* Valor (sem sinal — aplicado automaticamente) */}
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
               Valor
             </label>
             <div className="flex gap-2">
-              <div className="grid grid-cols-2 gap-1 shrink-0">
-                <button
-                  onClick={() => setTipoValor("positivo")}
-                  className={cn(
-                    "px-3 py-3 rounded-xl text-sm font-bold border-2 transition-all",
-                    tipoValor === "positivo"
-                      ? "border-green-500 bg-green-50 text-green-700"
-                      : "border-slate-200 bg-white text-slate-400"
-                  )}
-                >
-                  +
-                </button>
-                <button
-                  onClick={() => setTipoValor("negativo")}
-                  className={cn(
-                    "px-3 py-3 rounded-xl text-sm font-bold border-2 transition-all",
-                    tipoValor === "negativo"
-                      ? "border-red-500 bg-red-50 text-red-700"
-                      : "border-slate-200 bg-white text-slate-400"
-                  )}
-                >
-                  −
-                </button>
-              </div>
               <input
                 type="number"
                 inputMode="decimal"
@@ -204,7 +193,15 @@ export function NovaMovimentacaoDrawer({ aberto, onFechar }: NovaMovimentacaoDra
                 step="0.01"
                 className="flex-1 px-4 py-3 rounded-xl border border-slate-200 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-slate-300"
               />
+              <div className="px-4 py-3 rounded-xl bg-slate-100 text-slate-600 text-sm font-semibold flex items-center justify-center min-w-[60px]">
+                {categoriaId && categorias.find((c) => c.id === categoriaId)?.tipo === "credito"
+                  ? "+"
+                  : "−"}
+              </div>
             </div>
+            <p className="text-xs text-slate-400 mt-2">
+              O sinal será aplicado automaticamente de acordo com o tipo da categoria.
+            </p>
           </div>
 
           {/* Botão salvar */}

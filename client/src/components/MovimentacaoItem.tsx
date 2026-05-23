@@ -4,6 +4,7 @@
  */
 
 import { Movimentacao } from "@/contexts/FinanceContext";
+import { useFinance } from "@/contexts/FinanceContext";
 import { formatarMoeda, formatarData } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Trash2 } from "lucide-react";
@@ -14,23 +15,14 @@ interface MovimentacaoItemProps {
   onRemover: (id: string) => void;
 }
 
-const GRUPO_EMOJI: Record<string, string> = {
-  Receita: "💰",
-  Combustível: "⛽",
-  Manutenção: "🔧",
-  Pessoal: "👤",
-  "Saldo Inicial": "🏦",
-  Alimentação: "🍽️",
-  Transporte: "🚗",
-  Fornecedor: "📦",
-  Operacional: "⚙️",
-  Outros: "📌",
-};
-
 export function MovimentacaoItem({ mov, onRemover }: MovimentacaoItemProps) {
+  const { obterCategoriaPorId } = useFinance();
   const [confirmando, setConfirmando] = useState(false);
-  const isPositivo = mov.valor >= 0;
-  const emoji = GRUPO_EMOJI[mov.grupo] ?? "📌";
+
+  const categoria = obterCategoriaPorId(mov.categoriaId);
+  if (!categoria) return null;
+
+  const isPositivo = categoria.tipo === "credito";
 
   function handleRemover() {
     if (!confirmando) {
@@ -43,19 +35,19 @@ export function MovimentacaoItem({ mov, onRemover }: MovimentacaoItemProps) {
 
   return (
     <div className="flex items-center gap-3 py-3 px-4 bg-white rounded-xl border border-slate-100 shadow-sm hover:shadow-md transition-all duration-150 active:scale-[0.99]">
-      {/* Ícone do grupo */}
+      {/* Ícone da categoria */}
       <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-lg shrink-0">
-        {emoji}
+        {categoria.emoji}
       </div>
 
       {/* Informações */}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-slate-800 truncate">{mov.descricao}</p>
-        <div className="flex items-center gap-2 mt-0.5">
+        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
           <span className="text-xs text-slate-400">{formatarData(mov.data)}</span>
           <span className="text-xs text-slate-300">·</span>
           <span className="text-xs px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 font-medium">
-            {mov.grupo}
+            {categoria.nome}
           </span>
           <span className="text-xs text-slate-300">·</span>
           <span className="text-xs text-slate-400">
@@ -72,7 +64,7 @@ export function MovimentacaoItem({ mov, onRemover }: MovimentacaoItemProps) {
             isPositivo ? "text-green-600" : "text-red-600"
           )}
         >
-          {isPositivo ? "+" : ""}
+          {isPositivo ? "+" : "−"}
           {formatarMoeda(mov.valor)}
         </span>
 

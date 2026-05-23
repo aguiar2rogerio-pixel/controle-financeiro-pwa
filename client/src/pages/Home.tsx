@@ -4,20 +4,21 @@
  *
  * Estrutura:
  * - Cabeçalho fixo com nome e data
- * - 3 cartões de saldo
- * - Filtros de tabela e grupo
+ * - 4 cartões de saldo (Fluxo, Giro, Manutenção, Fundo de Reserva)
+ * - Filtros de tabela e categoria
  * - Lista de histórico
  * - FAB para nova movimentação
  */
 
 import { useState, useMemo } from "react";
-import { useFinance, Tabela, Movimentacao } from "@/contexts/FinanceContext";
+import { useFinance, Movimentacao } from "@/contexts/FinanceContext";
 import { SaldoCard } from "@/components/SaldoCard";
 import { MovimentacaoItem } from "@/components/MovimentacaoItem";
 import { NovaMovimentacaoDrawer } from "@/components/NovaMovimentacaoDrawer";
 import { formatarData } from "@/lib/format";
-import { Plus, TrendingUp, Wallet, Wrench, ChevronDown, Search, X } from "lucide-react";
+import { Plus, TrendingUp, Wallet, Wrench, PiggyBank, ChevronDown, Search, X, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useLocation } from "wouter";
 
 const TABELA_LABELS: Record<string, string> = {
   todas: "Todas",
@@ -26,10 +27,11 @@ const TABELA_LABELS: Record<string, string> = {
 };
 
 export default function Home() {
-  const { movimentacoes, remover, saldoFluxo, saldoGiro, totalManutencao } = useFinance();
+  const { movimentacoes, remover, saldoFluxo, saldoGiro, totalManutencao, totalFundoReserva, obterCategoriasPorTabela, obterCategoriaPorId } = useFinance();
+  const [, navigate] = useLocation();
   const [drawerAberto, setDrawerAberto] = useState(false);
-  const [filtroTabela, setFiltroTabela] = useState<"todas" | Tabela>("todas");
-  const [filtroGrupo, setFiltroGrupo] = useState<string>("todos");
+  const [filtroTabela, setFiltroTabela] = useState<"todas" | "fluxo" | "giro">("todas");
+  const [filtroCategoriaId, setFiltroCategoriaId] = useState<string>("todas");
   const [busca, setBusca] = useState("");
 
   // Data de hoje formatada
@@ -40,32 +42,41 @@ export default function Home() {
     month: "long",
   });
 
-  // Grupos disponíveis para o filtro
-  const gruposDisponiveis = useMemo(() => {
+  // Categorias disponíveis para o filtro
+  const categoriasDisponiveis = useMemo(() => {
     const movsFiltradas =
       filtroTabela === "todas"
         ? movimentacoes
         : movimentacoes.filter((m) => m.tabela === filtroTabela);
-    const set = new Set(movsFiltradas.map((m) => m.grupo));
-    return ["todos", ...Array.from(set).sort()];
-  }, [movimentacoes, filtroTabela]);
+
+    const set = new Set<string>();
+    movsFiltradas.forEach((m) => {
+      const cat = obterCategoriaPorId(m.categoriaId);
+      if (cat) set.add(cat.id);
+    });
+
+    return ["todas", ...Array.from(set).sort()];
+  }, [movimentacoes, filtroTabela, obterCategoriaPorId]);
 
   // Movimentações filtradas
   const movsFiltradas = useMemo(() => {
     return movimentacoes.filter((m) => {
       if (filtroTabela !== "todas" && m.tabela !== filtroTabela) return false;
-      if (filtroGrupo !== "todos" && m.grupo !== filtroGrupo) return false;
+
+      if (filtroCategoriaId !== "todas" && m.categoriaId !== filtroCategoriaId) return false;
+
       if (busca.trim()) {
         const q = busca.toLowerCase();
+        const categoria = obterCategoriaPorId(m.categoriaId);
         if (
           !m.descricao.toLowerCase().includes(q) &&
-          !m.grupo.toLowerCase().includes(q)
+          !(categoria && categoria.nome.toLowerCase().includes(q))
         )
           return false;
       }
       return true;
     });
-  }, [movimentacoes, filtroTabela, filtroGrupo, busca]);
+  }, [movimentacoes, filtroTabela, filtroCategoriaId, busca, obterCategoriaPorId]);
 
   // Agrupar por data
   const movsPorData = useMemo(() => {
@@ -79,6 +90,13 @@ export default function Home() {
     return Array.from(mapa.entries()).sort(([a], [b]) => b.localeCompare(a));
   }, [movsFiltradas]);
 
+  // Obter rótulo da categoria para o filtro
+  const obterRotuloCategoria = (id: string) => {
+    if (id === "todas") return "Todas as categorias";
+    const cat = obterCategoriaPorId(id);
+    return cat ? `${cat.emoji} ${cat.nome}` : "Desconhecida";
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 pb-28">
       {/* Cabeçalho */}
@@ -90,9 +108,13 @@ export default function Home() {
             </h1>
             <p className="text-xs text-slate-400 capitalize">{dataFormatada}</p>
           </div>
-          <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold text-sm shadow-sm shadow-blue-200">
-            CF
-          </div>
+          <button
+            onClick={() => navigate("/categorias")}
+            className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200 transition-colors"
+            title="Gerenciar categorias"
+          >
+            <Settings size={18} />
+          </button>
         </div>
       </header>
 
@@ -120,6 +142,13 @@ export default function Home() {
             tipo="neutro"
             icone={<Wrench size={20} />}
           />
+          <SaldoCard
+            titulo="Fundo de Reserva"
+            subtitulo="Acumulado do mês atual"
+            valor={totalFundoReserva}
+            tipo="positivo"
+            icone={<PiggyBank size={20} />}
+          />
         </section>
 
         {/* Seção histórico */}
@@ -136,7 +165,10 @@ export default function Home() {
             {(["todas", "fluxo", "giro"] as const).map((t) => (
               <button
                 key={t}
-                onClick={() => { setFiltroTabela(t); setFiltroGrupo("todos"); }}
+                onClick={() => {
+                  setFiltroTabela(t);
+                  setFiltroCategoriaId("todas");
+                }}
                 className={cn(
                   "px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap border transition-all duration-150 shrink-0",
                   filtroTabela === t
@@ -149,21 +181,21 @@ export default function Home() {
             ))}
           </div>
 
-          {/* Filtro de grupo */}
-          {gruposDisponiveis.length > 2 && (
+          {/* Filtro de categoria */}
+          {categoriasDisponiveis.length > 1 && (
             <div className="flex gap-2 mb-3 overflow-x-auto pb-1 scrollbar-hide">
-              {gruposDisponiveis.map((g) => (
+              {categoriasDisponiveis.map((catId) => (
                 <button
-                  key={g}
-                  onClick={() => setFiltroGrupo(g)}
+                  key={catId}
+                  onClick={() => setFiltroCategoriaId(catId)}
                   className={cn(
                     "px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border transition-all duration-150 shrink-0",
-                    filtroGrupo === g
+                    filtroCategoriaId === catId
                       ? "bg-slate-800 text-white border-slate-800"
                       : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
                   )}
                 >
-                  {g === "todos" ? "Todos os grupos" : g}
+                  {obterRotuloCategoria(catId)}
                 </button>
               ))}
             </div>
@@ -176,7 +208,7 @@ export default function Home() {
               type="text"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar por descrição ou grupo..."
+              placeholder="Buscar por descrição ou categoria..."
               className="w-full pl-9 pr-9 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-slate-300"
             />
             {busca && (
