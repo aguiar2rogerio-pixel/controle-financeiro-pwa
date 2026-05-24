@@ -5,7 +5,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { defineConfig, type Plugin, type ViteDevServer } from "vite";
 import { vitePluginManusRuntime } from "vite-plugin-manus-runtime";
-import { VitePWA } from 'vite-plugin-pwa';
 
 // =============================================================================
 // Manus Debug Collector - Vite Plugin
@@ -35,6 +34,7 @@ function trimLogFile(logPath: string, maxSize: number) {
     const keptLines: string[] = [];
     let keptBytes = 0;
 
+    // Keep newest lines (from end) that fit within 60% of maxSize
     const targetSize = TRIM_TARGET_BYTES;
     for (let i = lines.length - 1; i >= 0; i--) {
       const lineBytes = Buffer.byteLength(`${lines[i]}\n`, "utf-8");
@@ -55,18 +55,29 @@ function writeToLogFile(source: LogSource, entries: unknown[]) {
   ensureLogDir();
   const logPath = path.join(LOG_DIR, `${source}.log`);
 
+  // Format entries with timestamps
   const lines = entries.map((entry) => {
     const ts = new Date().toISOString();
     return `[${ts}] ${JSON.stringify(entry)}`;
   });
 
+  // Append to log file
   fs.appendFileSync(logPath, `${lines.join("\n")}\n`, "utf-8");
+
+  // Trim if exceeds max size
   trimLogFile(logPath, MAX_LOG_SIZE_BYTES);
 }
 
+/**
+ * Vite plugin to collect browser debug logs
+ * - POST /__manus__/logs: Browser sends logs, written directly to files
+ * - Files: browserConsole.log, networkRequests.log, sessionReplay.log
+ * - Auto-trimmed when exceeding 1MB (keeps newest entries)
+ */
 function vitePluginManusDebugCollector(): Plugin {
   return {
     name: "manus-debug-collector",
+
     transformIndexHtml(html) {
       if (process.env.NODE_ENV === "production") {
         return html;
@@ -85,13 +96,16 @@ function vitePluginManusDebugCollector(): Plugin {
         ],
       };
     },
+
     configureServer(server: ViteDevServer) {
+      // POST /__manus__/logs: Browser sends logs (written directly to files)
       server.middlewares.use("/__manus__/logs", (req, res, next) => {
         if (req.method !== "POST") {
           return next();
         }
 
         const handlePayload = (payload: any) => {
+          // Write logs directly to files
           if (payload.consoleLogs?.length > 0) {
             writeToLogFile("browserConsole", payload.consoleLogs);
           }
@@ -189,36 +203,7 @@ function vitePluginStorageProxy(): Plugin {
   };
 }
 
-// Lista de plugins unificada (Adicionado o VitePWA com as configurações necessárias)
-const plugins = [
-  react(), 
-  tailwindcss(), 
-  jsxLocPlugin(), 
-  vitePluginManusRuntime(), 
-  vitePluginManusDebugCollector(), 
-  vitePluginStorageProxy(),
-  VitePWA({
-    registerType: 'autoUpdate',
-    injectRegister: 'inline',
-    manifest: {
-      name: 'Controle Financeiro PWA',
-      short_name: 'Financeiro',
-      description: 'Aplicativo de Controle Financeiro Personalizado',
-      theme_color: '#ffffff',
-      background_color: '#ffffff',
-      display: 'standalone',
-      start_url: '/',
-      icons: [
-        {
-          src: 'https://cdn-icons-png.flaticon.com/512/5431/5431713.png',
-          sizes: '512x512',
-          type: 'image/png',
-          purpose: 'any maskable'
-        }
-      ]
-    }
-  })
-];
+const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime(), vitePluginManusDebugCollector(), vitePluginStorageProxy()];
 
 export default defineConfig({
   base: '/',
