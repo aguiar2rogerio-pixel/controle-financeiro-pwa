@@ -10,13 +10,14 @@
  * - FAB para nova movimentação
  */
 
+
 import { useState, useMemo } from "react";
 import { useFinance, Movimentacao } from "@/contexts/FinanceContext";
 import { SaldoCard } from "@/components/SaldoCard";
 import { MovimentacaoItem } from "@/components/MovimentacaoItem";
 import { NovaMovimentacaoDrawer } from "@/components/NovaMovimentacaoDrawer";
 import { formatarData } from "@/lib/format";
-import { Plus, TrendingUp, Wallet, Wrench, PiggyBank, ChevronDown, Search, X, Settings } from "lucide-react";
+import { Plus, TrendingUp, Wallet, Wrench, PiggyBank, Search, X, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLocation } from "wouter";
 
@@ -27,14 +28,26 @@ const TABELA_LABELS: Record<string, string> = {
 };
 
 export default function Home() {
-  const { movimentacoes, remover, saldoFluxo, saldoGiro, totalManutencao, totalFundoReserva, obterCategoriasPorTabela, obterCategoriaPorId } = useFinance();
+  // Adicionamos exportarBackup e importarBackup aqui
+  const { 
+    movimentacoes, 
+    remover, 
+    saldoFluxo, 
+    saldoGiro, 
+    totalManutencao, 
+    totalFundoReserva, 
+    obterCategoriasPorTabela, 
+    obterCategoriaPorId,
+    exportarBackup,
+    importarBackup 
+  } = useFinance();
+
   const [, navigate] = useLocation();
   const [drawerAberto, setDrawerAberto] = useState(false);
   const [filtroTabela, setFiltroTabela] = useState<"todas" | "fluxo" | "giro">("todas");
   const [filtroCategoriaId, setFiltroCategoriaId] = useState<string>("todas");
   const [busca, setBusca] = useState("");
 
-  // Data de hoje formatada
   const hoje = new Date();
   const dataFormatada = hoje.toLocaleDateString("pt-BR", {
     weekday: "long",
@@ -42,43 +55,29 @@ export default function Home() {
     month: "long",
   });
 
-  // Categorias disponíveis para o filtro
   const categoriasDisponiveis = useMemo(() => {
-    const movsFiltradas =
-      filtroTabela === "todas"
-        ? movimentacoes
-        : movimentacoes.filter((m) => m.tabela === filtroTabela);
-
+    const movsFiltradas = filtroTabela === "todas" ? movimentacoes : movimentacoes.filter((m) => m.tabela === filtroTabela);
     const set = new Set<string>();
     movsFiltradas.forEach((m) => {
       const cat = obterCategoriaPorId(m.categoriaId);
       if (cat) set.add(cat.id);
     });
-
     return ["todas", ...Array.from(set).sort()];
   }, [movimentacoes, filtroTabela, obterCategoriaPorId]);
 
-  // Movimentações filtradas
   const movsFiltradas = useMemo(() => {
     return movimentacoes.filter((m) => {
       if (filtroTabela !== "todas" && m.tabela !== filtroTabela) return false;
-
       if (filtroCategoriaId !== "todas" && m.categoriaId !== filtroCategoriaId) return false;
-
       if (busca.trim()) {
         const q = busca.toLowerCase();
         const categoria = obterCategoriaPorId(m.categoriaId);
-        if (
-          !m.descricao.toLowerCase().includes(q) &&
-          !(categoria && categoria.nome.toLowerCase().includes(q))
-        )
-          return false;
+        if (!m.descricao.toLowerCase().includes(q) && !(categoria && categoria.nome.toLowerCase().includes(q))) return false;
       }
       return true;
     });
   }, [movimentacoes, filtroTabela, filtroCategoriaId, busca, obterCategoriaPorId]);
 
-  // Agrupar por data
   const movsPorData = useMemo(() => {
     const mapa = new Map<string, Movimentacao[]>();
     for (const m of movsFiltradas) {
@@ -86,11 +85,9 @@ export default function Home() {
       arr.push(m);
       mapa.set(m.data, arr);
     }
-    // Ordenar datas decrescente
     return Array.from(mapa.entries()).sort(([a], [b]) => b.localeCompare(a));
   }, [movsFiltradas]);
 
-  // Obter rótulo da categoria para o filtro
   const obterRotuloCategoria = (id: string) => {
     if (id === "todas") return "Todas as categorias";
     const cat = obterCategoriaPorId(id);
@@ -99,178 +96,72 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-28">
-      {/* Cabeçalho */}
       <header className="sticky top-0 z-30 bg-white border-b border-slate-100 shadow-sm">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
           <div>
-            <h1 className="text-base font-bold text-slate-800 leading-tight">
-              💼 Controle Financeiro
-            </h1>
+            <h1 className="text-base font-bold text-slate-800 leading-tight">💼 Controle Financeiro</h1>
             <p className="text-xs text-slate-400 capitalize">{dataFormatada}</p>
           </div>
-          <button
-            onClick={() => navigate("/categorias")}
-            className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200 transition-colors"
-            title="Gerenciar categorias"
-          >
+          <button onClick={() => navigate("/categorias")} className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200 transition-colors">
             <Settings size={18} />
           </button>
         </div>
       </header>
 
       <div className="max-w-lg mx-auto px-4">
-        {/* Cartões de saldo */}
         <section className="pt-5 pb-2 space-y-3">
-          <SaldoCard
-            titulo="Saldo Fluxo Diário"
-            subtitulo="Saldo acumulado para o próximo dia"
-            valor={saldoFluxo}
-            tipo="automatico"
-            icone={<TrendingUp size={20} />}
-          />
-          <SaldoCard
-            titulo="Capital de Giro"
-            subtitulo="Saldo operacional atual"
-            valor={saldoGiro}
-            tipo="automatico"
-            icone={<Wallet size={20} />}
-          />
-          <SaldoCard
-            titulo="Total Manutenção"
-            subtitulo="Soma de todas as movimentações de Manutenção"
-            valor={totalManutencao}
-            tipo="neutro"
-            icone={<Wrench size={20} />}
-          />
-          <SaldoCard
-            titulo="Fundo de Reserva"
-            subtitulo="Acumulado do mês atual"
-            valor={totalFundoReserva}
-            tipo="positivo"
-            icone={<PiggyBank size={20} />}
-          />
+          <SaldoCard titulo="Saldo Fluxo Diário" valor={saldoFluxo} tipo="automatico" icone={<TrendingUp size={20} />} />
+          <SaldoCard titulo="Capital de Giro" valor={saldoGiro} tipo="automatico" icone={<Wallet size={20} />} />
+          <SaldoCard titulo="Total Manutenção" valor={totalManutencao} tipo="neutro" icone={<Wrench size={20} />} />
+          <SaldoCard titulo="Fundo de Reserva" valor={totalFundoReserva} tipo="positivo" icone={<PiggyBank size={20} />} />
         </section>
 
-        {/* Seção histórico */}
         <section className="pt-4">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-bold text-slate-700">Histórico</h2>
-            <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-full">
-              {movsFiltradas.length} registro{movsFiltradas.length !== 1 ? "s" : ""}
-            </span>
-          </div>
-
-          {/* Filtros de tabela */}
           <div className="flex gap-2 mb-3 overflow-x-auto pb-1 scrollbar-hide">
             {(["todas", "fluxo", "giro"] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => {
-                  setFiltroTabela(t);
-                  setFiltroCategoriaId("todas");
-                }}
-                className={cn(
-                  "px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap border transition-all duration-150 shrink-0",
-                  filtroTabela === t
-                    ? "bg-blue-600 text-white border-blue-600 shadow-sm"
-                    : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
-                )}
-              >
+              <button key={t} onClick={() => { setFiltroTabela(t); setFiltroCategoriaId("todas"); }} className={cn("px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap border transition-all duration-150 shrink-0", filtroTabela === t ? "bg-blue-600 text-white border-blue-600 shadow-sm" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300")}>
                 {TABELA_LABELS[t]}
               </button>
             ))}
           </div>
 
-          {/* Filtro de categoria */}
-          {categoriasDisponiveis.length > 1 && (
-            <div className="flex gap-2 mb-3 overflow-x-auto pb-1 scrollbar-hide">
-              {categoriasDisponiveis.map((catId) => (
-                <button
-                  key={catId}
-                  onClick={() => setFiltroCategoriaId(catId)}
-                  className={cn(
-                    "px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border transition-all duration-150 shrink-0",
-                    filtroCategoriaId === catId
-                      ? "bg-slate-800 text-white border-slate-800"
-                      : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
-                  )}
-                >
-                  {obterRotuloCategoria(catId)}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Busca */}
           <div className="relative mb-4">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" />
-            <input
-              type="text"
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar por descrição ou categoria..."
-              className="w-full pl-9 pr-9 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-slate-300"
-            />
-            {busca && (
-              <button
-                onClick={() => setBusca("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500"
-              >
-                <X size={14} />
-              </button>
-            )}
+            <input type="text" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por descrição ou categoria..." className="w-full pl-9 pr-9 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
 
-          {/* Lista */}
-          {movsPorData.length === 0 ? (
-            <div className="text-center py-16">
-              <div className="text-5xl mb-3">📋</div>
-              <p className="text-sm font-semibold text-slate-400">Nenhuma movimentação encontrada</p>
-              <p className="text-xs text-slate-300 mt-1">
-                {movimentacoes.length === 0
-                  ? "Toque no botão + para adicionar a primeira movimentação"
-                  : "Tente ajustar os filtros"}
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {movsPorData.map(([data, movs]) => (
-                <div key={data}>
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xs font-semibold text-slate-400">
-                      {formatarData(data)}
-                    </span>
-                    <div className="flex-1 h-px bg-slate-100" />
-                    <span className="text-xs text-slate-300">
-                      {movs.length} item{movs.length !== 1 ? "s" : ""}
-                    </span>
-                  </div>
-                  <div className="space-y-2">
-                    {movs.map((m) => (
-                      <MovimentacaoItem key={m.id} mov={m} onRemover={remover} />
-                    ))}
-                  </div>
+          {/* NOVOS BOTÕES DE BACKUP */}
+          <div className="flex gap-2 mb-6">
+            <button onClick={exportarBackup} className="flex-1 bg-white border border-slate-200 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 shadow-sm">
+              ⬇️ Fazer Backup
+            </button>
+            <label className="flex-1 bg-slate-800 text-white py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer shadow-sm">
+              ⬆️ Restaurar
+              <input type="file" className="hidden" accept=".json" onChange={(e) => e.target.files?.[0] && importarBackup(e.target.files[0])} />
+            </label>
+          </div>
+
+          <div className="space-y-4">
+            {movsPorData.map(([data, movs]) => (
+              <div key={data}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs font-semibold text-slate-400">{formatarData(data)}</span>
+                  <div className="flex-1 h-px bg-slate-100" />
                 </div>
-              ))}
-            </div>
-          )}
+                <div className="space-y-2">
+                  {movs.map((m) => (<MovimentacaoItem key={m.id} mov={m} onRemover={remover} />))}
+                </div>
+              </div>
+            ))}
+          </div>
         </section>
       </div>
 
-      {/* FAB — Botão flutuante */}
-      <button
-        onClick={() => setDrawerAberto(true)}
-        className="fixed bottom-6 right-6 w-16 h-16 rounded-2xl bg-blue-600 text-white shadow-xl shadow-blue-300 flex items-center justify-center hover:bg-blue-700 active:scale-95 transition-all duration-150 z-30"
-        aria-label="Nova movimentação"
-      >
-        <Plus size={28} strokeWidth={2.5} />
+      <button onClick={() => setDrawerAberto(true)} className="fixed bottom-6 right-6 w-16 h-16 rounded-2xl bg-blue-600 text-white shadow-xl shadow-blue-300 flex items-center justify-center hover:bg-blue-700 z-30">
+        <Plus size={28} />
       </button>
 
-      {/* Drawer de nova movimentação */}
-      <NovaMovimentacaoDrawer
-        aberto={drawerAberto}
-        onFechar={() => setDrawerAberto(false)}
-      />
+      <NovaMovimentacaoDrawer aberto={drawerAberto} onFechar={() => setDrawerAberto(false)} />
     </div>
   );
 }
