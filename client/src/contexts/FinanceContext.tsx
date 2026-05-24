@@ -131,8 +131,9 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
           setMovimentacoes(dados.movimentacoes);
           setCategorias(dados.categorias);
           alert("Backup restaurado com sucesso!");
-        }
-      } catch { alert("Erro ao restaurar arquivo."); }
+          window.location.reload();
+        } else { alert("Arquivo inválido!"); }
+      } catch { alert("Erro ao restaurar."); }
     };
     reader.readAsText(file);
   };
