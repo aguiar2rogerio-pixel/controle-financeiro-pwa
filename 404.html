@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle Financeiro</title>
+    <script>
+        // SPA Fallback: Redireciona para index.html mantendo a rota
+        const path = window.location.pathname.replace('/controle-financeiro-pwa/', '/');
+        sessionStorage.redirect = path;
+        window.location.href = '/controle-financeiro-pwa/';
+    </script>
+</head>
+<body>
+    <!-- Fallback para navegadores sem JavaScript -->
+    <p>Redirecionando...</p>
+</body>
+</html>
