@@ -24,7 +24,7 @@ export interface Categoria {
 export interface Movimentacao {
   id: string;
   tabela: Tabela;
-  data: string;
+  data: string; // Formato "YYYY-MM-DD"
   descricao: string;
   categoriaId: string;
   valor: number;
@@ -77,10 +77,12 @@ interface FinanceContextValue {
   obterCategoriaPorId: (id: string) => Categoria | undefined;
   saldoFluxo: number;
   saldoGiro: number;
-  totalManutencao: number;
-  totalFundoReserva: number;
+  totalManutencao: number;         // Mês Atual
+  totalManutencaoAnterior: number; // Mês Anterior
+  totalFundoReserva: number;       // Saldo Acumulado Real Vitalício
   exportarBackup: () => void;
   importarBackup: (file: File) => void;
+  transferirFundoReserva: (valor: number, destino: Tabela) => void;
 }
 
 const FinanceContext = createContext<FinanceContextValue | null>(null);
@@ -111,6 +113,37 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const obterCategoriaPorId = useCallback((id: string) => categorias.find((c) => c.id === id), [categorias]);
 
+  // Função para realizar a transferência simplificada direto do Fundo de Reserva
+  const transferirFundoReserva = useCallback((valor: number, destino: Tabela) => {
+    if (valor <= 0) return;
+    
+    const hojeStr = new Date().toISOString().slice(0, 10);
+    
+    // 1. Lança a saída na categoria Fundo de Reserva (tabela de destino) marcando o valor negativo para abater o fundo
+    const lancamentoSaida: Omit<Movimentacao, "id" | "criadoEm"> = {
+      tabela: destino,
+      data: hojeStr,
+      descricao: `Resgate de Fundo de Reserva para ${destino === "fluxo" ? "Fluxo Diário" : "Capital de Giro"}`,
+      categoriaId: "cat-fundo-reserva",
+      valor: -valor, // Negativo para indicar que reduziu a reserva
+    };
+
+    // 2. Lança a entrada na categoria de Receita ou Saldo Inicial na tabela de destino para injetar o dinheiro
+    const lancamentoEntrada: Omit<Movimentacao, "id" | "criadoEm"> = {
+      tabela: destino,
+      data: hojeStr,
+      descricao: "Entrada via Resgate de Fundo de Reserva",
+      categoriaId: "cat-saldo-inicial",
+      valor: valor, // Positivo para somar no caixa do Fluxo/Giro
+    };
+
+    setMovimentacoes((prev) => [
+      { ...lancamentoSaida, id: gerarId(), criadoEm: Date.now() },
+      { ...lancamentoEntrada, id: gerarId(), criadoEm: Date.now() + 1 },
+      ...prev
+    ]);
+  }, []);
+
   const exportarBackup = () => {
     const backup = { movimentacoes, categorias, data: new Date().toISOString() };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
@@ -138,25 +171,54 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     reader.readAsText(file);
   };
 
+  // Cálculo de saldos operacionais normais
   const saldoFluxo = movimentacoes.filter(m => m.tabela === "fluxo").reduce((acc, m) => {
     const cat = obterCategoriaPorId(m.categoriaId);
+    // Se for o Fundo de Reserva sendo lançado na tabela, ele obedece estritamente o sinal do valor dele
+    if (m.categoriaId === "cat-fundo-reserva") return acc; 
     return acc + (cat?.tipo === "credito" ? m.valor : -m.valor);
   }, 0);
 
   const saldoGiro = movimentacoes.filter(m => m.tabela === "giro").reduce((acc, m) => {
     const cat = obterCategoriaPorId(m.categoriaId);
+    if (m.categoriaId === "cat-fundo-reserva") return acc;
     return acc + (cat?.tipo === "credito" ? m.valor : -m.valor);
   }, 0);
 
-  const totalManutencao = movimentacoes.filter(m => obterCategoriaPorId(m.categoriaId)?.nome === "Manutenção").reduce((acc, m) => acc + m.valor, 0);
+  // 🗓️ Lógica de filtro por datas (Mês Atual e Mês Anterior)
+  const dataHoje = new Date();
+  const mesAtualStr = dataHoje.toISOString().slice(0, 7); // ex: "2026-05"
 
-  const totalFundoReserva = movimentacoes.filter(m => {
+  const dataMesAnterior = new Date(dataHoje.getFullYear(), dataHoje.getMonth() - 1, 1);
+  const mesAnteriorStr = dataMesAnterior.toISOString().slice(0, 7); // ex: "2026-04"
+
+  // Filtra Manutenção para o Mês Atual
+  const totalManutencao = movimentacoes.filter(m => {
     const cat = obterCategoriaPorId(m.categoriaId);
-    return cat?.nome === "Fundo de Reserva" && m.data.startsWith(new Date().toISOString().slice(0, 7));
+    return cat?.id === "cat-manutencao" && m.data.startsWith(mesAtualStr);
   }).reduce((acc, m) => acc + m.valor, 0);
 
+  // Filtra Manutenção para o Mês Anterior
+  const totalManutencaoAnterior = movimentacoes.filter(m => {
+    const cat = obterCategoriaPorId(m.categoriaId);
+    return cat?.id === "cat-manutencao" && m.data.startsWith(mesAnteriorStr);
+  }).reduce((acc, m) => acc + m.valor, 0);
+
+  // 🏦 Fundo de Reserva Real Acumulado Vitalício (Soma créditos, abate débitos/resgastes)
+  const totalFundoReserva = movimentacoes
+    .filter(m => m.categoriaId === "cat-fundo-reserva")
+    .reduce((acc, m) => acc + m.valor, 0);
+
   return (
-    <FinanceContext.Provider value={{ movimentacoes, adicionar, remover, categorias, adicionarCategoria, removerCategoria, obterCategoriasPorTabela, obterCategoriaPorId, saldoFluxo, saldoGiro, totalManutencao, totalFundoReserva, exportarBackup, importarBackup }}>
+    <FinanceContext.Provider value={{ 
+      movimentacoes, adicionar, remover, 
+      categorias, adicionarCategoria, removerCategoria, 
+      obterCategoriasPorTabela, obterCategoriaPorId, 
+      saldoFluxo, saldoGiro, 
+      totalManutencao, totalManutencaoAnterior, 
+      totalFundoReserva, exportarBackup, importarBackup,
+      transferirFundoReserva
+    }}>
       {children}
     </FinanceContext.Provider>
   );
