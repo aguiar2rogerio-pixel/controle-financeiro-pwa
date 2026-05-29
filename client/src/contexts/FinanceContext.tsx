@@ -31,16 +31,17 @@ export interface Movimentacao {
   criadoEm: number;
 }
 
+// Todas as categorias agora estão configuradas como escopo "ambos" para servirem em todas as contas.
 const CATEGORIAS_PADRAO: Categoria[] = [
   { id: "cat-receita", nome: "Receita", tipo: "credito", escopo: "ambos", emoji: "💰", criadoEm: Date.now() },
-  { id: "cat-combustivel", nome: "Combustível", tipo: "debito", escopo: "fluxo", emoji: "⛽", criadoEm: Date.now() },
+  { id: "cat-combustivel", nome: "Combustível", tipo: "debito", escopo: "ambos", emoji: "⛽", criadoEm: Date.now() },
   { id: "cat-manutencao", nome: "Manutenção", tipo: "debito", escopo: "ambos", emoji: "🔧", criadoEm: Date.now() },
   { id: "cat-pessoal", nome: "Pessoal", tipo: "debito", escopo: "ambos", emoji: "👤", criadoEm: Date.now() },
   { id: "cat-saldo-inicial", nome: "Saldo Inicial", tipo: "credito", escopo: "ambos", emoji: "🏦", criadoEm: Date.now() },
-  { id: "cat-alimentacao", nome: "Alimentação", tipo: "debito", escopo: "fluxo", emoji: "🍽️", criadoEm: Date.now() },
-  { id: "cat-transporte", nome: "Transporte", tipo: "debito", escopo: "fluxo", emoji: "🚗", criadoEm: Date.now() },
-  { id: "cat-fornecedor", nome: "Fornecedor", tipo: "debito", escopo: "giro", emoji: "📦", criadoEm: Date.now() },
-  { id: "cat-operacional", nome: "Operacional", tipo: "debito", escopo: "giro", emoji: "⚙️", criadoEm: Date.now() },
+  { id: "cat-alimentacao", nome: "Alimentação", tipo: "debito", escopo: "ambos", emoji: "🍽️", criadoEm: Date.now() },
+  { id: "cat-transporte", nome: "Transporte", tipo: "debito", escopo: "ambos", emoji: "🚗", criadoEm: Date.now() },
+  { id: "cat-fornecedor", nome: "Fornecedor", tipo: "debito", escopo: "ambos", emoji: "📦", criadoEm: Date.now() },
+  { id: "cat-operacional", nome: "Operacional", tipo: "debito", escopo: "ambos", emoji: "⚙️", criadoEm: Date.now() },
   { id: "cat-fundo-reserva", nome: "Fundo de Reserva", tipo: "credito", escopo: "ambos", emoji: "🏦", criadoEm: Date.now() },
   { id: "cat-outros", nome: "Outros", tipo: "debito", escopo: "ambos", emoji: "📌", criadoEm: Date.now() },
 ];
@@ -62,7 +63,12 @@ function carregarMovimentacoes(): Movimentacao[] {
 function carregarCategorias(): Categoria[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_CATEGORIAS);
-    return raw ? JSON.parse(raw) : CATEGORIAS_PADRAO;
+    // Mapeia para garantir que mesmo os dados antigos carregados passem a ser de escopo "ambos"
+    if (raw) {
+      const salvas: Categoria[] = JSON.parse(raw);
+      return salvas.map(c => ({ ...c, escopo: "ambos" }));
+    }
+    return CATEGORIAS_PADRAO;
   } catch { return CATEGORIAS_PADRAO; }
 }
 
@@ -72,6 +78,7 @@ interface FinanceContextValue {
   remover: (id: string) => void;
   categorias: Categoria[];
   adicionarCategoria: (dados: Omit<Categoria, "id" | "criadoEm">) => void;
+  editarCategoria: (id: string, dados: Partial<Omit<Categoria, "id" | "criadoEm">>) => void;
   removerCategoria: (id: string) => void;
   obterCategoriasPorTabela: (tabela: Tabela) => Categoria[];
   obterCategoriaPorId: (id: string) => Categoria | undefined;
@@ -100,19 +107,24 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   const remover = useCallback((id: string) => { setMovimentacoes((prev) => prev.filter((m) => m.id !== id)); }, []);
 
   const adicionarCategoria = useCallback((dados: Omit<Categoria, "id" | "criadoEm">) => {
-    setCategorias((prev) => [{ ...dados, id: gerarId(), criadoEm: Date.now() }, ...prev]);
+    setCategorias((prev) => [{ ...dados, id: gerarId(), escopo: "ambos", criadoEm: Date.now() }, ...prev]);
   }, []);
 
+  // Nova função para permitir a edição de categorias existentes (corrige erros de digitação)
+  const editarCategoria = useCallback((id: string, dados: Partial<Omit<Categoria, "id" | "criadoEm">>) => {
+    setCategorias((prev) => prev.map((c) => c.id === id ? { ...c, ...dados, escopo: "ambos" } : c));
+  }, []);
+
+  // Trava removida! Agora você pode excluir qualquer categoria, inclusive as padrões do sistema.
   const removerCategoria = useCallback((id: string) => {
-    if (!id.startsWith("cat-")) setCategorias((prev) => prev.filter((c) => c.id !== id));
+    setCategorias((prev) => prev.filter((c) => c.id !== id));
   }, []);
 
-  const obterCategoriasPorTabela = useCallback((tabela: Tabela) => 
-    categorias.filter((c) => c.escopo === "ambos" || c.escopo === tabela), [categorias]);
+  // Como o escopo agora é sempre "ambos", retorna todas as categorias independentemente da conta selecionada
+  const obterCategoriasPorTabela = useCallback((tabela: Tabela) => categorias, [categorias]);
 
   const obterCategoriaPorId = useCallback((id: string) => categorias.find((c) => c.id === id), [categorias]);
 
-  // Nova função para realizar a transferência rápida direto dos cards
   const transferirParaReserva = useCallback((origem: Tabela, destinoNome: "Manutenção" | "Fundo de Reserva", valor: number) => {
     const cat = categorias.find(c => c.nome === destinoNome);
     if (!cat) return;
@@ -143,8 +155,10 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       try {
         const dados = JSON.parse(e.target?.result as string);
         if (dados.movimentacoes && dados.categorias) {
+          // Garante que o backup antigo também passe a tratar as categorias com escopo livre "ambos"
+          const categoriasTratadas = dados.categorias.map((c: any) => ({ ...c, escopo: "ambos" }));
           setMovimentacoes(dados.movimentacoes);
-          setCategorias(dados.categorias);
+          setCategorias(categoriasTratadas);
           alert("Backup restaurado com sucesso!");
           window.location.reload();
         } else { alert("Arquivo inválido!"); }
@@ -171,7 +185,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }).reduce((acc, m) => acc + m.valor, 0);
 
   return (
-    <FinanceContext.Provider value={{ movimentacoes, adicionar, remover, categorias, adicionarCategoria, removerCategoria, obterCategoriasPorTabela, obterCategoriaPorId, saldoFluxo, saldoGiro, totalManutencao, totalFundoReserva, transferirParaReserva, exportarBackup, importarBackup }}>
+    <FinanceContext.Provider value={{ movimentacoes, adicionar, remover, categorias, adicionarCategoria, editarCategoria, removerCategoria, obterCategoriasPorTabela, obterCategoriaPorId, saldoFluxo, saldoGiro, totalManutencao, totalFundoReserva, transferirParaReserva, exportarBackup, importarBackup }}>
       {children}
     </FinanceContext.Provider>
   );
