@@ -79,6 +79,7 @@ interface FinanceContextValue {
   saldoGiro: number;
   totalManutencao: number;
   totalFundoReserva: number;
+  transferirParaReserva: (origem: Tabela, destinoNome: "Manutenção" | "Fundo de Reserva", valor: number) => void;
   exportarBackup: () => void;
   importarBackup: (file: File) => void;
 }
@@ -110,6 +111,20 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     categorias.filter((c) => c.escopo === "ambos" || c.escopo === tabela), [categorias]);
 
   const obterCategoriaPorId = useCallback((id: string) => categorias.find((c) => c.id === id), [categorias]);
+
+  // Nova função para realizar a transferência rápida direto dos cards
+  const transferirParaReserva = useCallback((origem: Tabela, destinoNome: "Manutenção" | "Fundo de Reserva", valor: number) => {
+    const cat = categorias.find(c => c.nome === destinoNome);
+    if (!cat) return;
+
+    adicionar({
+      tabela: origem,
+      data: new Date().toISOString().slice(0, 10),
+      descricao: `Aporte rápido para ${destinoNome}`,
+      categoriaId: cat.id,
+      valor: valor
+    });
+  }, [categorias, adicionar]);
 
   const exportarBackup = () => {
     const backup = { movimentacoes, categorias, data: new Date().toISOString() };
@@ -156,7 +171,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }).reduce((acc, m) => acc + m.valor, 0);
 
   return (
-    <FinanceContext.Provider value={{ movimentacoes, adicionar, remover, categorias, adicionarCategoria, removerCategoria, obterCategoriasPorTabela, obterCategoriaPorId, saldoFluxo, saldoGiro, totalManutencao, totalFundoReserva, exportarBackup, importarBackup }}>
+    <FinanceContext.Provider value={{ movimentacoes, adicionar, remover, categorias, adicionarCategoria, removerCategoria, obterCategoriasPorTabela, obterCategoriaPorId, saldoFluxo, saldoGiro, totalManutencao, totalFundoReserva, transferirParaReserva, exportarBackup, importarBackup }}>
       {children}
     </FinanceContext.Provider>
   );
