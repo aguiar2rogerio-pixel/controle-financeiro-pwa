@@ -8,12 +8,14 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { FinanceProvider } from "./contexts/FinanceContext";
 import Home from "./pages/Home";
 import Categorias from "./pages/Categorias";
+import Historico from "./pages/Historico"; // <--- Isso avisa o app que a página existe
 
 function Router() {
   return (
     <Switch>
       <Route path={"/"} component={Home} />
       <Route path={"/categorias"} component={Categorias} />
+      <Route path={"/historico"} component={Historico} /> {/* <--- Isso cria o caminho para ela */}
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>
@@ -22,7 +24,6 @@ function Router() {
 
 function App() {
   useEffect(() => {
-    // Handle SPA redirect from 404.html
     const redirect = sessionStorage.redirect;
     if (redirect) {
       delete sessionStorage.redirect;
