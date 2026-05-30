@@ -1,9 +1,9 @@
 import { useState, useMemo } from "react";
 import { useFinance } from "@/contexts/FinanceContext";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ArrowUpCircle, ArrowDownCircle, Search, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft, ArrowUpCircle, ArrowDownCircle, Search } from "lucide-react";
 import { Link } from "wouter";
 
 export default function Historico() {
@@ -12,7 +12,7 @@ export default function Historico() {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedType, setSelectedType] = useState("all");
 
-  // Filtros inteligentes de transações
+  // Filtros de transações
   const filteredTransactions = useMemo(() => {
     return transactions.filter((t) => {
       const matchesSearch = t.description.toLowerCase().includes(search.toLowerCase());
@@ -118,9 +118,9 @@ export default function Historico() {
                 </div>
               </CardContent>
             </Card>
-          </Card>
-        ))
-      )}
+          ))
+        )}
+      </div>
     </div>
   );
 }
