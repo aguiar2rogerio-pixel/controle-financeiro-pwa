@@ -7,21 +7,28 @@ import { ArrowLeft, ArrowUpCircle, ArrowDownCircle, Search } from "lucide-react"
 import { Link } from "wouter";
 
 export default function Historico() {
-  const { transactions = [], categories = [] } = useFinance(); // <--- Proteção adicionada aqui com "|| []"
+  // Traduzido para as variáveis reais do seu contexto
+  const { movimentacoes = [], categorias = [] } = useFinance(); 
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedType, setSelectedType] = useState("all");
 
-  // Filtros de transações blindados contra listas vazias/indefinidas
+  // Filtros ajustados com a estrutura em português do app
   const filteredTransactions = useMemo(() => {
-    return (transactions || []).filter((t) => {
-      if (!t || !t.description) return false;
-      const matchesSearch = t.description.toLowerCase().includes(search.toLowerCase());
-      const matchesCategory = selectedCategory === "all" || t.categoryId === selectedCategory;
-      const matchesType = selectedType === "all" || t.type === selectedType;
+    return (movimentacoes || []).filter((m) => {
+      if (!m || !m.descricao) return false;
+      
+      const matchesSearch = m.descricao.toLowerCase().includes(search.toLowerCase());
+      const matchesCategory = selectedCategory === "all" || m.categoriaId === selectedCategory;
+      
+      // Busca o tipo (credito/debito) da categoria relacionada para fazer o filtro por tipo
+      const categoriaRelacionada = categorias.find(c => c.id === m.categoriaId);
+      const tipoMovimentacao = categoriaRelacionada?.tipo || "debito";
+      const matchesType = selectedType === "all" || tipoMovimentacao === selectedType;
+      
       return matchesSearch && matchesCategory && matchesType;
     });
-  }, [transactions, search, selectedCategory, selectedType]);
+  }, [movimentacoes, categorias, search, selectedCategory, selectedType]);
 
   return (
     <div className="min-h-screen bg-background p-4 pb-8">
@@ -57,8 +64,8 @@ export default function Historico() {
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
               >
                 <option value="all">Todos os Fluxos</option>
-                <option value="income">Entradas / Vendas</option>
-                <option value="expense">Saídas / Custos</option>
+                <option value="credito">Entradas / Vendas</option>
+                <option value="debito">Saídas / Custos</option>
               </select>
             </div>
 
@@ -70,9 +77,9 @@ export default function Historico() {
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
               >
                 <option value="all">Todas</option>
-                {(categories || []).map((cat) => (
+                {(categorias || []).map((cat) => (
                   <option key={cat.id} value={cat.id}>
-                    {cat.name}
+                    {cat.emoji ? `${cat.emoji} ` : ""}{cat.nome}
                   </option>
                 ))}
               </select>
@@ -96,30 +103,39 @@ export default function Historico() {
             </CardContent>
           </Card>
         ) : (
-          filteredTransactions.map((t) => (
-            <Card key={t.id} className="overflow-hidden">
-              <CardContent className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {t.type === "income" ? (
-                    <ArrowUpCircle className="h-8 w-8 text-emerald-500 shrink-0" />
-                  ) : (
-                    <ArrowDownCircle className="h-8 w-8 text-rose-500 shrink-0" />
-                  )}
-                  <div>
-                    <p className="font-medium text-sm leading-tight">{t.description}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {t.date ? new Date(t.date).toLocaleDateString("pt-BR") : ""}
+          filteredTransactions.map((m) => {
+            // Descobre o tipo de forma dinâmica para aplicar a cor certa (+ ou -)
+            const cat = categorias.find(c => c.id === m.categoriaId);
+            const isCredito = cat?.tipo === "credito";
+
+            return (
+              <Card key={m.id} className="overflow-hidden">
+                <CardContent className="p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    {isCredito ? (
+                      <ArrowUpCircle className="h-8 w-8 text-emerald-500 shrink-0" />
+                    ) : (
+                      <ArrowDownCircle className="h-8 w-8 text-rose-500 shrink-0" />
+                    )}
+                    <div>
+                      <p className="font-medium text-sm leading-tight">{m.descricao}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {m.data ? new Date(m.data + "T12:00:00").toLocaleDateString("pt-BR") : ""}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className={`font-semibold text-sm ${isCredito ? "text-emerald-600" : "text-rose-600"}`}>
+                      {isCredito ? "+" : "-"} R$ {Number(m.valor || 0).toFixed(2)}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground capitalize">
+                      {m.tabela}
                     </p>
                   </div>
-                </div>
-                <div className="text-right">
-                  <p className={`font-semibold text-sm ${t.type === "income" ? "text-emerald-600" : "text-rose-600"}`}>
-                    {t.type === "income" ? "+" : "-"} R$ {Number(t.amount || 0).toFixed(2)}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          ))
+                </CardContent>
+              </Card>
+            );
+          })
         )}
       </div>
     </div>
