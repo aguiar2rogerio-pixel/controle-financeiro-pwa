@@ -45,7 +45,7 @@ export default function Home() {
     { id: "reserva", nome: "Fundo de Reserva" }
   ];
 
-  const categoriasFiltradas = useMemo(() => {
+  const categoriesFiltradas = useMemo(() => {
     return categorias.filter(c => c.tipo === tipoForm);
   }, [categorias, tipoForm]);
 
@@ -86,11 +86,15 @@ export default function Home() {
   };
 
   const ultimosLancamentos = useMemo(() => {
-    return (movimentacoes || anisotropy).slice(0, 5);
+    return (movimentacoes || []).slice(0, 5);
   }, [movimentacoes]);
 
+  // CORREÇÃO DOS SINAIS: Garante exibição positiva nos cards secundários
+  const exibicaoManutencao = totalManutencao * -1;
+  const exibicaoReserva = totalFundoReserva * -1;
+
   return (
-    <div className="min-h-screen bg-[#12141c] text-white p-4 pb-24 font-sans">
+    <div className="min-h-screen bg-[#12141c] text-white p-4 pb-28 font-sans">
       
       {/* Cabeçalho */}
       <div className="flex justify-between items-center mb-6">
@@ -137,14 +141,14 @@ export default function Home() {
           <Card className="bg-[#1e2230] border-gray-800">
             <CardContent className="p-4">
               <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider">Manutenção</p>
-              <h3 className="text-xl font-bold text-white mt-1">R$ {totalManutencao.toFixed(2).replace(".", ",")}</h3>
+              <h3 className="text-xl font-bold text-white mt-1">R$ {exibicaoManutencao.toFixed(2).replace(".", ",")}</h3>
             </CardContent>
           </Card>
 
           <Card className="bg-[#1e2230] border-gray-800">
             <CardContent className="p-4">
               <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider">Fundo de Reserva</p>
-              <h3 className="text-xl font-bold text-emerald-400 mt-1">R$ {totalFundoReserva.toFixed(2).replace(".", ",")}</h3>
+              <h3 className="text-xl font-bold text-emerald-400 mt-1">R$ {exibicaoReserva.toFixed(2).replace(".", ",")}</h3>
             </CardContent>
           </Card>
         </div>
@@ -217,12 +221,18 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Botões de Ação Flutuantes Inferiores */}
-      <div className="fixed bottom-4 left-4 right-4 grid grid-cols-2 gap-4 z-40">
-        <Button onClick={() => abrirFormulario("credito")} className="bg-emerald-600 hover:bg-emerald-500 text-white h-12 rounded-xl font-bold text-sm shadow-xl flex items-center justify-center gap-2">
+      {/* BARRA INFERIOR FIXA COM OS BOTÕES DE ENTRADA E SAÍDA */}
+      <div className="fixed bottom-0 left-0 right-0 bg-[#12141c]/90 backdrop-blur-md border-t border-gray-800/80 p-4 grid grid-cols-2 gap-4 z-40 shadow-2xl">
+        <Button 
+          onClick={() => abrirFormulario("credito")} 
+          className="bg-emerald-600 hover:bg-emerald-500 text-white h-12 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg transition-colors"
+        >
           <Plus className="h-4 w-4" /> Entrada
         </Button>
-        <Button onClick={() => abrirFormulario("debito")} className="bg-rose-600 hover:bg-rose-500 text-white h-12 rounded-xl font-bold text-sm shadow-xl flex items-center justify-center gap-2">
+        <Button 
+          onClick={() => abrirFormulario("debito")} 
+          className="bg-rose-600 hover:bg-rose-500 text-white h-12 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg transition-colors"
+        >
           <Plus className="h-4 w-4" /> Saída
         </Button>
       </div>
@@ -315,7 +325,7 @@ export default function Home() {
               <div>
                 <label className="text-[10px] font-bold text-gray-500 block mb-1 uppercase">Categoria</label>
                 <select value={categoriaId} onChange={(e) => setCategoriaId(e.target.value)} className="w-full bg-[#161924] border border-gray-800 rounded-lg p-2.5 text-white text-sm">
-                  {categoriasFiltradas.map(c => <option key={c.id} value={c.id}>{c.emoji} {c.nome}</option>)}
+                  {categoriesFiltradas.map(c => <option key={c.id} value={c.id}>{c.emoji} {c.nome}</option>)}
                 </select>
               </div>
               <div>
