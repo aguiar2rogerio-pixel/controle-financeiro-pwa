@@ -7,14 +7,15 @@ import { ArrowLeft, ArrowUpCircle, ArrowDownCircle, Search } from "lucide-react"
 import { Link } from "wouter";
 
 export default function Historico() {
-  const { transactions, categories } = useFinance();
+  const { transactions = [], categories = [] } = useFinance(); // <--- Proteção adicionada aqui com "|| []"
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedType, setSelectedType] = useState("all");
 
-  // Filtros de transações
+  // Filtros de transações blindados contra listas vazias/indefinidas
   const filteredTransactions = useMemo(() => {
-    return transactions.filter((t) => {
+    return (transactions || []).filter((t) => {
+      if (!t || !t.description) return false;
       const matchesSearch = t.description.toLowerCase().includes(search.toLowerCase());
       const matchesCategory = selectedCategory === "all" || t.categoryId === selectedCategory;
       const matchesType = selectedType === "all" || t.type === selectedType;
@@ -69,7 +70,7 @@ export default function Historico() {
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
               >
                 <option value="all">Todas</option>
-                {categories.map((cat) => (
+                {(categories || []).map((cat) => (
                   <option key={cat.id} value={cat.id}>
                     {cat.name}
                   </option>
@@ -107,13 +108,13 @@ export default function Historico() {
                   <div>
                     <p className="font-medium text-sm leading-tight">{t.description}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      {new Date(t.date).toLocaleDateString("pt-BR")}
+                      {t.date ? new Date(t.date).toLocaleDateString("pt-BR") : ""}
                     </p>
                   </div>
                 </div>
                 <div className="text-right">
                   <p className={`font-semibold text-sm ${t.type === "income" ? "text-emerald-600" : "text-rose-600"}`}>
-                    {t.type === "income" ? "+" : "-"} R$ {Number(t.amount).toFixed(2)}
+                    {t.type === "income" ? "+" : "-"} R$ {Number(t.amount || 0).toFixed(2)}
                   </p>
                 </div>
               </CardContent>
