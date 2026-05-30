@@ -31,7 +31,6 @@ export interface Movimentacao {
   criadoEm: number;
 }
 
-// Todas as categorias agora estão configuradas como escopo "ambos" para servirem em todas as contas.
 const CATEGORIAS_PADRAO: Categoria[] = [
   { id: "cat-receita", nome: "Receita", tipo: "credito", escopo: "ambos", emoji: "💰", criadoEm: Date.now() },
   { id: "cat-combustivel", nome: "Combustível", tipo: "debito", escopo: "ambos", emoji: "⛽", criadoEm: Date.now() },
@@ -63,7 +62,6 @@ function carregarMovimentacoes(): Movimentacao[] {
 function carregarCategorias(): Categoria[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_CATEGORIAS);
-    // Mapeia para garantir que mesmo os dados antigos carregados passem a ser de escopo "ambos"
     if (raw) {
       const salvas: Categoria[] = JSON.parse(raw);
       return salvas.map(c => ({ ...c, escopo: "ambos" }));
@@ -86,7 +84,7 @@ interface FinanceContextValue {
   saldoGiro: number;
   totalManutencao: number;
   totalFundoReserva: number;
-  transferirParaReserva: (origem: Tabela, destinoNome: "Manutenção" | "Fundo de Reserva", valor: number) => void;
+  executarTransferencia: (origem: string, destino: string, valor: number) => void;
   exportarBackup: () => void;
   importarBackup: (file: File) => void;
 }
@@ -110,33 +108,57 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     setCategorias((prev) => [{ ...dados, id: gerarId(), escopo: "ambos", criadoEm: Date.now() }, ...prev]);
   }, []);
 
-  // Nova função para permitir a edição de categorias existentes (corrige erros de digitação)
   const editarCategoria = useCallback((id: string, dados: Partial<Omit<Categoria, "id" | "criadoEm">>) => {
     setCategorias((prev) => prev.map((c) => c.id === id ? { ...c, ...dados, escopo: "ambos" } : c));
   }, []);
 
-  // Trava removida! Agora você pode excluir qualquer categoria, inclusive as padrões do sistema.
   const removerCategoria = useCallback((id: string) => {
     setCategorias((prev) => prev.filter((c) => c.id !== id));
   }, []);
 
-  // Como o escopo agora é sempre "ambos", retorna todas as categorias independentemente da conta selecionada
   const obterCategoriasPorTabela = useCallback((tabela: Tabela) => categorias, [categorias]);
 
   const obterCategoriaPorId = useCallback((id: string) => categorias.find((c) => c.id === id), [categorias]);
 
-  const transferirParaReserva = useCallback((origem: Tabela, destinoNome: "Manutenção" | "Fundo de Reserva", valor: number) => {
-    const cat = categorias.find(c => c.nome === destinoNome);
-    if (!cat) return;
+  const executarTransferencia = useCallback((origem: string, destino: string, valor: number) => {
+    const dataHoje = new Date().toISOString().slice(0, 10);
 
+    const obterCategoriaId = (tipoConta: string, isEntrada: boolean) => {
+      if (tipoConta === "manutencao") return "cat-manutencao";
+      if (tipoConta === "reserva") return "cat-fundo-reserva";
+      return isEntrada ? "cat-receita" : "cat-operacional"; 
+    };
+
+    const obterTabelaFisica = (tipoConta: string): Tabela => {
+      if (tipoConta === "giro") return "giro";
+      return "fluxo";
+    };
+
+    const nomeContaFormatado = (idConta: string) => {
+      if (idConta === "fluxo") return "Fluxo Diário";
+      if (idConta === "giro") return "Capital de Giro";
+      if (idConta === "manutencao") return "Manutenção";
+      return "Fundo de Reserva";
+    };
+
+    // 1. Lançamento de saída da conta origem
     adicionar({
-      tabela: origem,
-      data: new Date().toISOString().slice(0, 10),
-      descricao: `Aporte rápido para ${destinoNome}`,
-      categoriaId: cat.id,
+      tabela: obterTabelaFisica(origem),
+      data: dataHoje,
+      descricao: `Transf. para ${nomeContaFormatado(destino)}`,
+      categoriaId: obterCategoriaId(origem, false),
       valor: valor
     });
-  }, [categorias, adicionar]);
+
+    // 2. Lançamento de entrada na conta destino
+    adicionar({
+      tabela: obterTabelaFisica(destino),
+      data: dataHoje,
+      descricao: `Transf. de ${nomeContaFormatado(origem)}`,
+      categoriaId: obterCategoriaId(destino, true),
+      valor: valor
+    });
+  }, [adicionar]);
 
   const exportarBackup = () => {
     const backup = { movimentacoes, categorias, data: new Date().toISOString() };
@@ -155,7 +177,6 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       try {
         const dados = JSON.parse(e.target?.result as string);
         if (dados.movimentacoes && dados.categorias) {
-          // Garante que o backup antigo também passe a tratar as categorias com escopo livre "ambos"
           const categoriasTratadas = dados.categorias.map((c: any) => ({ ...c, escopo: "ambos" }));
           setMovimentacoes(dados.movimentacoes);
           setCategorias(categoriasTratadas);
@@ -177,15 +198,18 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     return acc + (cat?.tipo === "credito" ? m.valor : -m.valor);
   }, 0);
 
-  const totalManutencao = movimentacoes.filter(m => obterCategoriaPorId(m.categoriaId)?.nome === "Manutenção").reduce((acc, m) => acc + m.valor, 0);
-
-  const totalFundoReserva = movimentacoes.filter(m => {
+  const totalManutencao = movimentacoes.filter(m => obterCategoriaPorId(m.categoriaId)?.nome === "Manutenção").reduce((acc, m) => {
     const cat = obterCategoriaPorId(m.categoriaId);
-    return cat?.nome === "Fundo de Reserva" && m.data.startsWith(new Date().toISOString().slice(0, 7));
-  }).reduce((acc, m) => acc + m.valor, 0);
+    return acc + (cat?.tipo === "credito" ? m.valor : -m.valor);
+  }, 0);
+
+  const totalFundoReserva = movimentacoes.filter(m => obterCategoriaPorId(m.categoriaId)?.nome === "Fundo de Reserva").reduce((acc, m) => {
+    const cat = obterCategoriaPorId(m.categoriaId);
+    return acc + (cat?.tipo === "credito" ? m.valor : -m.valor);
+  }, 0);
 
   return (
-    <FinanceContext.Provider value={{ movimentacoes, adicionar, remover, categorias, adicionarCategoria, editarCategoria, removerCategoria, obterCategoriasPorTabela, obterCategoriaPorId, saldoFluxo, saldoGiro, totalManutencao, totalFundoReserva, transferirParaReserva, exportarBackup, importarBackup }}>
+    <FinanceContext.Provider value={{ movimentacoes, adicionar, remover, categorias, adicionarCategoria, editarCategoria, removerCategoria, obterCategoriasPorTabela, obterCategoriaPorId, saldoFluxo, saldoGiro, totalManutencao, totalFundoReserva, executarTransferencia, exportarBackup, importarBackup }}>
       {children}
     </FinanceContext.Provider>
   );
