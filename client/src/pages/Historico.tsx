@@ -1,142 +1,207 @@
 import { useState, useMemo } from "react";
 import { useFinance } from "@/contexts/FinanceContext";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ArrowUpCircle, ArrowDownCircle, Search } from "lucide-react";
+import { X } from "lucide-react";
 import { Link } from "wouter";
 
 export default function Historico() {
-  // Traduzido para as variáveis reais do seu contexto
-  const { movimentacoes = [], categorias = [] } = useFinance(); 
-  const [search, setSearch] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("all");
-  const [selectedType, setSelectedType] = useState("all");
+  // Puxa as variáveis reais em português do seu arquivo FinanceContext.tsx
+  const { movimentacoes = [], categorias = [], remover } = useFinance();
+  
+  // Estados funcionais para controle dos filtros
+  const [tabelaAtiva, setTabelaAtiva] = useState<"fluxo" | "giro">("fluxo");
+  const [dataInicial, setDataInicial] = useState("");
+  const [dataFinal, setDataFinal] = useState("");
+  const [categoriaAtiva, setCategoriaAtiva] = useState("todos");
 
-  // Filtros ajustados com a estrutura em português do app
-  const filteredTransactions = useMemo(() => {
+  // FUNCTION 1: Filtragem lógica dos dados
+  const dadosFiltrados = useMemo(() => {
     return (movimentacoes || []).filter((m) => {
-      if (!m || !m.descricao) return false;
+      if (!m) return false;
       
-      const matchesSearch = m.descricao.toLowerCase().includes(search.toLowerCase());
-      const matchesCategory = selectedCategory === "all" || m.categoriaId === selectedCategory;
+      // 1. Filtra pela conta ativa (fluxo ou giro)
+      const matchesTabela = m.tabela === tabelaAtiva;
       
-      // Busca o tipo (credito/debito) da categoria relacionada para fazer o filtro por tipo
-      const categoriaRelacionada = categorias.find(c => c.id === m.categoriaId);
-      const tipoMovimentacao = categoriaRelacionada?.tipo || "debito";
-      const matchesType = selectedType === "all" || tipoMovimentacao === selectedType;
+      // 2. Filtra pela categoria selecionada nos botões
+      const matchesCategory = categoriaAtiva === "todos" || m.categoriaId === categoriaAtiva;
       
-      return matchesSearch && matchesCategory && matchesType;
+      // 3. Filtra pelo intervalo de datas selecionado (YYYY-MM-DD)
+      const matchesDataInicial = !dataInicial || m.data >= dataInicial;
+      const matchesDataFinal = !dataFinal || m.data <= dataFinal;
+
+      return matchesTabela && matchesCategory && matchesDataInicial && matchesDataFinal;
     });
-  }, [movimentacoes, categorias, search, selectedCategory, selectedType]);
+  }, [movimentacoes, tabelaAtiva, categoriaAtiva, dataInicial, dataFinal]);
+
+  // FUNCTION 2: Cálculo matemático dinâmico do Saldo Filtrado
+  const saldoFiltrado = useMemo(() => {
+    return dadosFiltrados.reduce((acumulador, m) => {
+      // Encontra a categoria correspondente para descobrir se é entrada (credito) ou saída (debito)
+      const cat = categorias.find(c => c.id === m.categoriaId);
+      if (cat?.tipo === "credito") {
+        return acumulador + Number(m.valor || 0);
+      } else {
+        return acumulador - Number(m.valor || 0);
+      }
+    }, 0);
+  }, [dadosFiltrados, categorias]);
 
   return (
-    <div className="min-h-screen bg-background p-4 pb-8">
+    <div className="min-h-screen bg-[#12141c] text-white flex flex-col font-sans">
+      
       {/* Cabeçalho */}
-      <div className="flex items-center gap-4 mb-6">
+      <div className="bg-[#0e82a7] p-5 pt-7 pb-6 flex justify-between items-start relative">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-white mb-1">Histórico</h1>
+          <p className="text-cyan-100/80 text-sm">Visualize e filtre suas transações</p>
+        </div>
         <Link href="/">
-          <Button variant="ghost" size="icon" className="rounded-full">
-            <ArrowLeft className="h-5 w-5" />
+          <Button variant="ghost" size="icon" className="text-white hover:bg-black/10 rounded-full">
+            <X className="h-7 w-7" />
           </Button>
         </Link>
-        <h1 className="text-2xl font-bold tracking-tight">Histórico Geral</h1>
       </div>
 
-      {/* Painel de Filtros */}
-      <Card className="mb-6">
-        <CardContent className="pt-6 space-y-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por descrição..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-medium text-muted-foreground block mb-1">Tipo</label>
-              <select
-                value={selectedType}
-                onChange={(e) => setSelectedType(e.target.value)}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                <option value="all">Todos os Fluxos</option>
-                <option value="credito">Entradas / Vendas</option>
-                <option value="debito">Saídas / Custos</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="text-xs font-medium text-muted-foreground block mb-1">Categoria</label>
-              <select
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                <option value="all">Todas</option>
-                {(categorias || []).map((cat) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.emoji ? `${cat.emoji} ` : ""}{cat.nome}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Lista de Resultados */}
-      <div className="space-y-3">
-        <div className="flex justify-between items-center px-1">
-          <p className="text-sm text-muted-foreground">
-            Encontrados: <strong>{filteredTransactions.length}</strong> lançamentos
-          </p>
+      {/* Grid de Funções */}
+      <div className="p-4 space-y-4 flex-1">
+        
+        {/* Alternador de Conta (Fluxo / Giro) */}
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={() => setTabelaAtiva("fluxo")}
+            className={`py-3 px-4 rounded-lg font-semibold text-base border transition-all ${
+              tabelaAtiva === "fluxo"
+                ? "bg-[#0e82a7] border-[#0e82a7] text-white"
+                : "bg-[#1e2230] border-gray-800 text-gray-300"
+            }`}
+          >
+            Fluxo Diário
+          </button>
+          <button
+            onClick={() => setTabelaAtiva("giro")}
+            className={`py-3 px-4 rounded-lg font-semibold text-base border transition-all ${
+              tabelaAtiva === "giro"
+                ? "bg-[#0e82a7] border-[#0e82a7] text-white"
+                : "bg-[#1e2230] border-gray-800 text-gray-300"
+            }`}
+          >
+            Capital de Giro
+          </button>
         </div>
 
-        {filteredTransactions.length === 0 ? (
-          <Card>
-            <CardContent className="py-8 text-center text-muted-foreground">
-              Nenhuma movimentação encontrada com esses filtros.
-            </CardContent>
-          </Card>
-        ) : (
-          filteredTransactions.map((m) => {
-            // Descobre o tipo de forma dinâmica para aplicar a cor certa (+ ou -)
-            const cat = categorias.find(c => c.id === m.categoriaId);
-            const isCredito = cat?.tipo === "credito";
+        {/* Filtragem por Datas */}
+        <div className="grid grid-cols-2 gap-3">
+          <Input
+            type="date"
+            value={dataInicial}
+            onChange={(e) => setDataInicial(e.target.value)}
+            className="bg-[#1e2230] border-gray-800 text-gray-400 rounded-lg text-xs h-10 px-2 uppercase"
+          />
+          <Input
+            type="date"
+            value={dataFinal}
+            onChange={(e) => setDataFinal(e.target.value)}
+            className="bg-[#1e2230] border-gray-800 text-gray-400 rounded-lg text-xs h-10 px-2 uppercase"
+          />
+        </div>
 
-            return (
-              <Card key={m.id} className="overflow-hidden">
-                <CardContent className="p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    {isCredito ? (
-                      <ArrowUpCircle className="h-8 w-8 text-emerald-500 shrink-0" />
-                    ) : (
-                      <ArrowDownCircle className="h-8 w-8 text-rose-500 shrink-0" />
-                    )}
-                    <div>
-                      <p className="font-medium text-sm leading-tight">{m.descricao}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {m.data ? new Date(m.data + "T12:00:00").toLocaleDateString("pt-BR") : ""}
-                      </p>
+        {/* Botões de Seleção de Categorias */}
+        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none -mx-4 px-4">
+          <button
+            onClick={() => setCategoriaAtiva("todos")}
+            className={`py-2 px-4 rounded-full text-sm font-medium transition-all shrink-0 ${
+              categoriaAtiva === "todos"
+                ? "bg-[#0e82a7] text-white"
+                : "bg-[#1e2230] border border-gray-800 text-gray-300"
+            }`}
+          >
+            Todos
+          </button>
+          {categorias.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setCategoriaAtiva(cat.id)}
+              className={`py-2 px-4 rounded-full text-sm font-medium transition-all shrink-0 flex items-center gap-1.5 ${
+                categoriaAtiva === cat.id
+                  ? "bg-[#0e82a7] text-white"
+                  : "bg-[#1e2230] border border-gray-800 text-gray-300"
+              }`}
+            >
+              <span>{cat.nome}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Painel do Saldo Filtrado Reativo */}
+        <div className="bg-[#1e2230] border border-gray-800 rounded-xl p-4">
+          <p className="text-gray-400 text-xs font-medium mb-1">Saldo Filtrado</p>
+          <h2 className={`text-3xl font-bold tracking-tight ${saldoFiltrado >= 0 ? "text-emerald-500" : "text-rose-500"}`}>
+            {saldoFiltrado >= 0 ? "" : "-"}R$ {Math.abs(saldoFiltrado).toFixed(2).replace(".", ",")}
+          </h2>
+        </div>
+
+        {/* Renderização dos Dados Filtrados */}
+        <div className="space-y-4">
+          {dadosFiltrados.length === 0 ? (
+            <div className="bg-[#1e2230] border border-gray-800 rounded-xl py-12 text-center text-gray-400">
+              Nenhuma movimentação encontrada com esses filtros.
+            </div>
+          ) : (
+            dadosFiltrados.map((m) => {
+              const cat = categorias.find((c) => c.id === m.categoriaId);
+              const isCredito = cat?.tipo === "credito";
+              
+              let dataFormatada = "";
+              if (m.data) {
+                const partes = m.data.split("-");
+                if (partes.length === 3) dataFormatada = `${partes[2]}/${partes[1]}`;
+              }
+
+              return (
+                <div key={m.id} className="bg-[#1e2230] border border-gray-800 rounded-xl p-4 space-y-4">
+                  <div className="flex justify-between items-start">
+                    <div className="space-y-1">
+                      <p className="text-gray-400 text-xs font-semibold">{dataFormatada}</p>
+                      <h3 className="text-lg font-bold text-gray-100 leading-snug">{m.descricao}</h3>
+                      <span className="inline-block bg-[#161924] text-xs px-2.5 py-0.5 rounded-full text-gray-400 border border-gray-800">
+                        {cat?.nome || "Sem Categoria"}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className={`text-xl font-bold ${isCredito ? "text-emerald-400" : "text-rose-400"}`}>
+                        {isCredito ? "+" : "-"}R$ {m.valor.toFixed(2).replace(".", ",")}
+                      </span>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className={`font-semibold text-sm ${isCredito ? "text-emerald-600" : "text-rose-600"}`}>
-                      {isCredito ? "+" : "-"} R$ {Number(m.valor || 0).toFixed(2)}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground capitalize">
-                      {m.tabela}
-                    </p>
+
+                  {/* Gatilho funcional para remoção */}
+                  <div className="grid grid-cols-2 gap-3 pt-2 border-t border-gray-800/60">
+                    <Button 
+                      variant="outline" 
+                      className="bg-[#1d2d54] border-none text-blue-300 font-semibold rounded-lg h-10"
+                      onClick={() => alert("Função mapeada no contexto.")}
+                    >
+                      Editar
+                    </Button>
+                    <Button 
+                      variant="destructive" 
+                      className="bg-[#6b2323] border-none text-rose-200 font-semibold rounded-lg h-10"
+                      onClick={() => {
+                        if(confirm("Deseja realmente deletar este lançamento?")) {
+                          remover(m.id);
+                        }
+                      }}
+                    >
+                      Deletar
+                    </Button>
                   </div>
-                </CardContent>
-              </Card>
-            );
-          })
-        )}
+                </div>
+              );
+            })
+          )}
+        </div>
+
       </div>
     </div>
   );
