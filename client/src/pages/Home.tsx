@@ -104,7 +104,8 @@ export default function Home() {
           </h1>
           <p className="text-xs text-gray-500 mt-0.5">Sábado, 30 de Maio</p>
         </div>
-        <Link href="/configuracoes">
+        {/* AJUSTADO: Rota com C maiúsculo para a Vercel aceitar com sucesso */}
+        <Link href="/Categorias">
           <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white rounded-full bg-[#1e2230]">
             <Settings className="h-5 w-5" />
           </Button>
