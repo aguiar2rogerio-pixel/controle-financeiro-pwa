@@ -3,8 +3,7 @@ import { useFinance } from "@/contexts/FinanceContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowUpRight, ArrowDownRight, ArrowLeftRight, Settings, Plus, X, Trash2 } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, ArrowLeftRight, Settings, Plus, Trash2, X } from "lucide-react";
 import { Link } from "wouter";
 
 export default function Home() {
@@ -33,16 +32,15 @@ export default function Home() {
   const [valor, setValor] = useState("");
   const [data, setData] = useState(new Date().toISOString().slice(0, 10));
 
-  // Estados do formulário de transferência
+  // Estados do formulário de transferência (Ajustado para padrão estável inicial)
   const [origem, setOrigem] = useState("fluxo");
   const [destino, setDestino] = useState("giro");
   const [valorTransferencia, setValorTransferencia] = useState("");
 
+  // BLINDAGEM: Lista de contas reduzida apenas para as tabelas físicas reais
   const listaContas = [
     { id: "fluxo", nome: "Saldo Fluxo Diário" },
-    { id: "giro", nome: "Capital de Giro" },
-    { id: "manutencao", nome: "Manutenção" },
-    { id: "reserva", nome: "Fundo de Reserva" }
+    { id: "giro", nome: "Capital de Giro" }
   ];
 
   const categoriesFiltradas = useMemo(() => {
@@ -89,7 +87,7 @@ export default function Home() {
     return (movimentacoes || []).slice(0, 5);
   }, [movimentacoes]);
 
-  // CORREÇÃO DOS SINAIS: Garante exibição positiva nos cards secundários
+  // CORREÇÃO DOS SINAIS: Mantém exibição positiva estável nos cards de caixinha
   const exibicaoManutencao = totalManutencao * -1;
   const exibicaoReserva = totalFundoReserva * -1;
 
@@ -102,9 +100,8 @@ export default function Home() {
           <h1 className="text-xl font-bold tracking-tight text-gray-100 flex items-center gap-2">
             💼 Controle Financeiro
           </h1>
-          <p className="text-xs text-gray-500 mt-0.5">Sábado, 30 de Maio</p>
+          <p className="text-xs text-gray-500 mt-0.5">Segunda-feira, 01 de Junho</p>
         </div>
-        {/* AJUSTADO: Rota com C maiúsculo para a Vercel aceitar com sucesso */}
         <Link href="/Categorias">
           <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white rounded-full bg-[#1e2230]">
             <Settings className="h-5 w-5" />
@@ -174,7 +171,11 @@ export default function Home() {
         </div>
 
         <Button 
-          onClick={() => setIsTransferOpen(true)}
+          onClick={() => {
+            setOrigem("fluxo");
+            setDestino("giro");
+            setIsTransferOpen(true);
+          }}
           className="w-full bg-[#1c7896] hover:bg-[#228eaf] text-white h-11 text-sm rounded-lg font-semibold flex items-center justify-center gap-2 shadow-md transition-colors"
         >
           <ArrowLeftRight className="h-4 w-4" />
@@ -238,10 +239,10 @@ export default function Home() {
         </Button>
       </div>
 
-      {/* POP-UP DE TRANSFERÊNCIA MENSAL ENTRE CONTAS */}
+      {/* POP-UP DE TRANSFERÊNCIA BLINDADO (APENAS FLUXO <-> GIRO) */}
       {isTransferOpen && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#12141c] border border-gray-800 w-full max-w-sm rounded-xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-[#12141c] border border-gray-800 w-full max-w-sm rounded-xl overflow-hidden shadow-2xl">
             <div className="bg-[#0e82a7] p-4 flex justify-between items-center text-white">
               <div className="flex items-center gap-2 font-bold text-base">
                 <ArrowLeftRight className="h-5 w-5" />
@@ -258,12 +259,9 @@ export default function Home() {
                   value={origem}
                   onChange={(e) => {
                     setOrigem(e.target.value);
-                    if (e.target.value === destino) {
-                      const proximo = listaContas.find(c => c.id !== e.target.value);
-                      if (proximo) setDestino(proximo.id);
-                    }
+                    setDestino(e.target.value === "fluxo" ? "giro" : "fluxo");
                   }}
-                  className="w-full bg-[#1e2230] border border-gray-800 rounded-lg p-3 text-white text-sm focus:outline-none focus:border-[#0e82a7]"
+                  className="w-full bg-[#1e2230] border border-gray-800 rounded-lg p-3 text-white text-sm focus:outline-none"
                 >
                   {listaContas.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
                 </select>
@@ -273,7 +271,7 @@ export default function Home() {
                 <select
                   value={destino}
                   onChange={(e) => setDestino(e.target.value)}
-                  className="w-full bg-[#1e2230] border border-gray-800 rounded-lg p-3 text-white text-sm focus:outline-none focus:border-[#0e82a7]"
+                  className="w-full bg-[#1e2230] border border-gray-800 rounded-lg p-3 text-white text-sm focus:outline-none"
                 >
                   {listaContas.filter(c => c.id !== origem).map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
                 </select>
@@ -286,7 +284,7 @@ export default function Home() {
                   placeholder="0,00"
                   value={valorTransferencia}
                   onChange={(e) => setValorTransferencia(e.target.value)}
-                  className="bg-[#1e2230] border-gray-800 text-white placeholder-gray-600 rounded-lg h-12 text-base focus:border-[#0e82a7]"
+                  className="bg-[#1e2230] border-gray-800 text-white placeholder-gray-600 rounded-lg h-12 text-base"
                 />
               </div>
               <Button onClick={handleConfirmarTransferencia} className="w-full bg-[#0e3da7] hover:bg-[#1349c2] text-white font-bold h-12 rounded-lg text-base mt-2 shadow-lg">
