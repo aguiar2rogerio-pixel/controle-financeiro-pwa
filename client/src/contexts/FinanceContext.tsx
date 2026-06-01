@@ -120,89 +120,69 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const obterCategoriaPorId = useCallback((id: string) => categorias.find((c) => c.id === id), [categorias]);
 
-  // Lógica de Transferência Corrigida para Contas Virtuais (Manutenção e Reserva)
+  // Função de transferência limpa e direta
   const executarTransferencia = useCallback((origem: string, destino: string, valor: number) => {
     const dataHoje = new Date().toISOString().slice(0, 10);
 
-    const nomeContaFormatado = (idConta: string) => {
-      if (idConta === "fluxo") return "Fluxo Diário";
-      if (idConta === "giro") return "Capital de Giro";
-      if (idConta === "manutencao") return "Manutenção";
-      return "Fundo de Reserva";
-    };
-
-    // CASO 1: Transferências envolvendo Manutenção ou Reserva (Cenário que dava erro)
-    if (origem === "manutencao" || origem === "reserva" || destino === "manutencao" || destino === "reserva") {
-      
-      if (destino === "reserva") {
-        // Sai do fluxo/giro e ENTRA na Reserva. 
-        // Como Reserva é do tipo "credito", um lançamento positivo nela já aumenta o saldo dela e reduz o saldo da tabela física (fluxo/giro).
-        adicionar({
-          tabela: origem === "giro" ? "giro" : "fluxo",
-          data: dataHoje,
-          descricao: `Transf. para Fundo de Reserva`,
-          categoriaId: "cat-fundo-reserva",
-          valor: valor
-        });
-      } 
-      else if (destino === "manutencao") {
-        // Sai do fluxo/giro e ENTRA na Manutenção.
-        // Como Manutenção é do tipo "debito", para ela ACUMULAR saldo positivo ela precisa receber um lançamento de débito.
-        // Esse débito automaticamente reduz o saldo da tabela física (fluxo/giro).
-        adicionar({
-          tabela: origem === "giro" ? "giro" : "fluxo",
-          data: dataHoje,
-          descricao: `Transf. para Manutenção`,
-          categoriaId: "cat-manutencao",
-          valor: valor
-        });
-      } 
-      else if (origem === "reserva") {
-        // RESGATANDO DA RESERVA para voltar pro Fluxo ou Giro.
-        // Para a reserva diminuir e a tabela física aumentar, lançamos como uma Receita Comum na tabela destino.
-        adicionar({
-          tabela: destino === "giro" ? "giro" : "fluxo",
-          data: dataHoje,
-          descricao: `Resgate de Fundo de Reserva`,
-          categoriaId: "cat-receita",
-          valor: valor
-        });
-        // E fazemos uma contrapartida interna de débito para abater o bolo da Reserva sem duplicar o caixa
-        adicionar({
-          tabela: destino === "giro" ? "giro" : "fluxo",
-          data: dataHoje,
-          descricao: `Abatimento Reserva p/ ${nomeContaFormatado(destino)}`,
-          categoriaId: "cat-operacional",
-          valor: valor
-        });
-      } 
-      else if (origem === "manutencao") {
-        // RESGATANDO DA MANUTENÇÃO para voltar pro Fluxo ou Giro.
-        // Para a manutenção diminuir (ela é débito) e o caixa físico aumentar, lançamos uma receita comum.
-        adicionar({
-          tabela: destino === "giro" ? "giro" : "fluxo",
-          data: dataHoje,
-          descricao: `Resgate de Manutenção`,
-          categoriaId: "cat-receita",
-          valor: valor
-        });
-        // E revertemos o peso da manutenção com uma categoria de receita
-        adicionar({
-          tabela: destino === "giro" ? "giro" : "fluxo",
-          data: dataHoje,
-          descricao: `Abatimento Manutenção p/ ${nomeContaFormatado(destino)}`,
-          categoriaId: "cat-saldo-inicial",
-          valor: valor
-        });
-      }
+    // 1. Transferência para o Fundo de Reserva
+    if (destino === "reserva") {
+      const tabelaOrigem = origem === "giro" ? "giro" : "fluxo";
+      adicionar({
+        tabela: tabelaOrigem,
+        data: dataHoje,
+        descricao: `Envio para Fundo de Reserva`,
+        categoriaId: "cat-fundo-reserva",
+        valor: valor
+      });
       return;
     }
 
-    // CASO 2: Transferência padrão entre Tabelas Físicas (Fluxo <-> Giro) - Já estava correto
+    // 2. Transferência para Manutenção
+    if (destino === "manutencao") {
+      const tabelaOrigem = origem === "giro" ? "giro" : "fluxo";
+      adicionar({
+        tabela: tabelaOrigem,
+        data: dataHoje,
+        descricao: `Envio para Manutenção`,
+        categoriaId: "cat-manutencao",
+        valor: valor
+      });
+      return;
+    }
+
+    // 3. Resgate do Fundo de Reserva voltando para Fluxo ou Giro
+    if (origem === "reserva") {
+      const tabelaDestino = destino === "giro" ? "giro" : "fluxo";
+      // Como a reserva é baseada na categoria "cat-fundo-reserva" (crédito), para diminuir ela, lançamos o valor com sinal negativo
+      adicionar({
+        tabela: tabelaDestino,
+        data: dataHoje,
+        descricao: `Resgate de Fundo de Reserva`,
+        categoriaId: "cat-fundo-reserva",
+        valor: -valor
+      });
+      return;
+    }
+
+    // 4. Resgate da Manutenção voltando para Fluxo ou Giro
+    if (origem === "manutencao") {
+      const tabelaDestino = destino === "giro" ? "giro" : "fluxo";
+      // Como manutenção é baseada na categoria "cat-manutencao" (débito), para diminuir ela, lançamos com sinal negativo
+      adicionar({
+        tabela: tabelaDestino,
+        data: dataHoje,
+        descricao: `Resgate de Manutenção`,
+        categoriaId: "cat-manutencao",
+        valor: -valor
+      });
+      return;
+    }
+
+    // 5. Transferência padrão Física: Fluxo <-> Giro (Sem envolver as caixinhas)
     adicionar({
       tabela: origem as Tabela,
       data: dataHoje,
-      descricao: `Transf. para ${nomeContaFormatado(destino)}`,
+      descricao: `Transf. para Capital de Giro`,
       categoriaId: "cat-operacional",
       valor: valor
     });
@@ -210,7 +190,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     adicionar({
       tabela: destino as Tabela,
       data: dataHoje,
-      descricao: `Transf. de ${nomeContaFormatado(origem)}`,
+      descricao: `Transf. de Fluxo Diário`,
       categoriaId: "cat-receita",
       valor: valor
     });
@@ -245,7 +225,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     reader.readAsText(file);
   };
 
-  // Cálculos matemáticos limpos baseados nas categorias reais
+  // Retornando à fórmula original estável dos saldos
   const saldoFluxo = movimentacoes.filter(m => m.tabela === "fluxo").reduce((acc, m) => {
     const cat = obterCategoriaPorId(m.categoriaId);
     return acc + (cat?.tipo === "credito" ? m.valor : -m.valor);
@@ -257,9 +237,8 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }, 0);
 
   const totalManutencao = movimentacoes.filter(m => obterCategoriaPorId(m.categoriaId)?.id === "cat-manutencao").reduce((acc, m) => {
-    // Como Manutenção na raiz é um DÉBITO, o acúmulo dela na caixinha é a soma dos seus débitos
     const cat = obterCategoriaPorId(m.categoriaId);
-    return acc + (cat?.tipo === "debito" ? m.valor : -m.valor);
+    return acc + (cat?.tipo === "credito" ? m.valor : -m.valor);
   }, 0);
 
   const totalFundoReserva = movimentacoes.filter(m => obterCategoriaPorId(m.categoriaId)?.id === "cat-fundo-reserva").reduce((acc, m) => {
@@ -268,7 +247,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }, 0);
 
   return (
-    <FinanceContext.Provider value={{ movimentacoes, adicionar, remover, categorias, adicionarCategoria, editarCategoria, removerCategoria, obterCategoriasPorTabela, obterCategoriaPorId, saldoFluxo, saldoGiro, totalManutencao, totalFundoReserva, executarTransferencia, exportarBackup, importarBackup }}>
+    <FinanceContext.Provider value={{ movimentacoes, adicionar, remover, categorias, adicionarCategoria, editarCategoria, removerCategoria, obterCategoriasPorTabela, obterCategoriaPorId, saldoFluxo, saldoGiro, totalManutencao, totalFundoReserva, ejecutarTransferencia, exportarBackup, importarBackup }}>
       {children}
     </FinanceContext.Provider>
   );
