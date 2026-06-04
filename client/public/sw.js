@@ -1,19 +1,21 @@
-const CACHE_NAME = 'controle-financeiro-v1';
+const CACHE_VERSION = 'controle-financeiro-v2-' + new Date().getTime();
 
 // Install: Just activate, don't try to cache specific URLs
 self.addEventListener('install', (event) => {
+  console.log('Service Worker installing, cache version:', CACHE_VERSION);
   self.skipWaiting();
 });
 
-// Activate: Clean up old caches
+// Activate: Clean up ALL old caches
 self.addEventListener('activate', (event) => {
+  console.log('Service Worker activating');
   event.waitUntil(
     caches.keys().then((cacheNames) => {
+      console.log('Found caches:', cacheNames);
       return Promise.all(
         cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
-            return caches.delete(cacheName);
-          }
+          console.log('Deleting old cache:', cacheName);
+          return caches.delete(cacheName);
         })
       );
     })
@@ -43,7 +45,7 @@ self.addEventListener('fetch', (event) => {
 
         // Clone and cache successful responses
         const responseToCache = response.clone();
-        caches.open(CACHE_NAME).then((cache) => {
+        caches.open(CACHE_VERSION).then((cache) => {
           cache.put(event.request, responseToCache);
         });
 
