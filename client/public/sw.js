@@ -1,25 +1,11 @@
 const CACHE_NAME = 'controle-financeiro-v1';
-const urlsToCache = [
-  '/controle-financeiro-pwa/',
-  '/controle-financeiro-pwa/index.html',
-  '/controle-financeiro-pwa/icon-192.png',
-  '/controle-financeiro-pwa/icon-512.png',
-];
 
-// Install event
+// Install: Just activate, don't try to cache specific URLs
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(urlsToCache).catch(() => {
-        // Ignore errors if some files are not available
-        console.log('Some files could not be cached');
-      });
-    })
-  );
   self.skipWaiting();
 });
 
-// Activate event
+// Activate: Clean up old caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -35,42 +21,37 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch event
+// Fetch: Network first, fallback to cache
 self.addEventListener('fetch', (event) => {
-  // Only handle GET requests
+  // Skip non-GET requests
   if (event.request.method !== 'GET') {
     return;
   }
 
+  // Skip chrome extensions and other non-http requests
+  if (!event.request.url.startsWith('http')) {
+    return;
+  }
+
   event.respondWith(
-    caches.match(event.request).then((response) => {
-      // Return cached version if available
-      if (response) {
-        return response;
-      }
-
-      // Otherwise fetch from network
-      return fetch(event.request)
-        .then((response) => {
-          // Don't cache non-successful responses
-          if (!response || response.status !== 200 || response.type === 'error') {
-            return response;
-          }
-
-          // Clone the response
-          const responseToCache = response.clone();
-
-          // Cache the response for future use
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
-          });
-
+    fetch(event.request)
+      .then((response) => {
+        // Don't cache non-successful responses
+        if (!response || response.status !== 200) {
           return response;
-        })
-        .catch(() => {
-          // Return offline page or cached response if available
-          return caches.match(event.request);
+        }
+
+        // Clone and cache successful responses
+        const responseToCache = response.clone();
+        caches.open(CACHE_NAME).then((cache) => {
+          cache.put(event.request, responseToCache);
         });
-    })
+
+        return response;
+      })
+      .catch(() => {
+        // Return cached version if available
+        return caches.match(event.request);
+      })
   );
 });
