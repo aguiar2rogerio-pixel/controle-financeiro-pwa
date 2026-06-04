@@ -2,33 +2,33 @@
   "name": "Controle Financeiro Pessoal",
   "short_name": "Financeiro",
   "description": "App de controle financeiro pessoal — Fluxo Diário e Capital de Giro",
-  "start_url": "/",
-  "scope": "/",
+  "start_url": "/controle-financeiro-pwa/",
+  "scope": "/controle-financeiro-pwa/",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#ffffff",
   "theme_color": "#1D4ED8",
   "icons": [
     {
-      "src": "/icon-192.png",
+      "src": "/controle-financeiro-pwa/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icon-512.png",
+      "src": "/controle-financeiro-pwa/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icon-192.png",
+      "src": "/controle-financeiro-pwa/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "/icon-512.png",
+      "src": "/controle-financeiro-pwa/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
