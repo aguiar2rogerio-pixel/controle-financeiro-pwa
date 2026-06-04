@@ -11,7 +11,8 @@
     <meta name="apple-mobile-web-app-title" content="Controle Financeiro" />
     <title>Controle Financeiro Pessoal</title>
     
-    <link rel="manifest" href="/manifest.json" />
+    <!-- Chamada do manifesto com caminho relativo -->
+    <link rel="manifest" href="manifest.json" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -22,10 +23,11 @@
   <body class="bg-[#12141c]">
     <div id="root"></div>
     
+    <!-- Registro do Service Worker com caminho relativo -->
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
+          navigator.serviceWorker.register('sw.js')
             .then(reg => console.log('Service Worker registrado com sucesso!', reg))
             .catch(err => console.log('Falha ao registrar o Service Worker:', err));
         });
