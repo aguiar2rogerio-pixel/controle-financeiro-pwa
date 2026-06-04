@@ -59,6 +59,7 @@ export default function Home() {
   const handleSalvarLancamento = (e: React.FormEvent) => {
     e.preventDefault();
     const valorNum = parseFloat(valor.replace(",", "."));
+
     if (!descricao || isNaN(valorNum) || valorNum <= 0 || !categoriaId) {
       alert("Preencha todos os campos corretamente.");
       return;
@@ -69,6 +70,7 @@ export default function Home() {
 
   const handleConfirmarTransferencia = () => {
     const valorNum = parseFloat(valorTransferencia.replace(",", "."));
+
     if (isNaN(valorNum) || valorNum <= 0) {
       alert("Por favor, insira um valor válido.");
       return;
@@ -100,7 +102,10 @@ export default function Home() {
           <h1 className="text-xl font-bold tracking-tight text-gray-100 flex items-center gap-2">
             💼 Controle Financeiro
           </h1>
-          <p className="text-xs text-gray-500 mt-0.5">Segunda-feira, 01 de Junho</p>
+          <p className="text-xs text-gray-500 mt-0.5">
+            {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
+              .replace(/^\w/, (c) => c.toUpperCase())}
+          </p>
         </div>
         <Link href="/Categorias">
           <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white rounded-full bg-[#1e2230]">
@@ -111,6 +116,7 @@ export default function Home() {
 
       {/* Grid de Saldos Principais */}
       <div className="space-y-4 mb-6">
+   
         <Card className="bg-[#1e2230] border-gray-800 shadow-xl">
           <CardContent className="p-5 flex items-center justify-between">
             <div>
