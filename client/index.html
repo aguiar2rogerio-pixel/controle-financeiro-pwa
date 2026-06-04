@@ -25,5 +25,17 @@
       defer
       src="%VITE_ANALYTICS_ENDPOINT%/umami"
       data-website-id="%VITE_ANALYTICS_WEBSITE_ID%"></script>
+
+    <!-- O bloco que faltava para ativar a instalação no celular -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/controle-financeiro-pwa/sw.js')
+            .then(reg => console.log('Service Worker registrado com sucesso!', reg))
+            .catch(err => console.log('Falha ao registrar o Service Worker:', err));
+        });
+      }
+    </script>
   </body>
 </html>
+
