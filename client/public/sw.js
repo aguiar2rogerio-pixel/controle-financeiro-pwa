@@ -1,21 +1,33 @@
-const CACHE_VERSION = 'controle-financeiro-v2-' + new Date().getTime();
+const CACHE_NAME = 'controle-financeiro-v1';
 
-// Install: Just activate, don't try to cache specific URLs
+// Recursos básicos para o app funcionar offline
+const PRECACHE_ASSETS = [
+  '/',
+  '/index.html',
+  '/manifest.json',
+  '/icon-192.png',
+  '/icon-512.png'
+];
+
+// Instalação: Salva o básico no cache
 self.addEventListener('install', (event) => {
-  console.log('Service Worker installing, cache version:', CACHE_VERSION);
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll(PRECACHE_ASSETS);
+    })
+  );
   self.skipWaiting();
 });
 
-// Activate: Clean up ALL old caches
+// Ativação: Limpa caches antigos de verdade
 self.addEventListener('activate', (event) => {
-  console.log('Service Worker activating');
   event.waitUntil(
     caches.keys().then((cacheNames) => {
-      console.log('Found caches:', cacheNames);
       return Promise.all(
         cacheNames.map((cacheName) => {
-          console.log('Deleting old cache:', cacheName);
-          return caches.delete(cacheName);
+          if (cacheName !== CACHE_NAME) {
+            return caches.delete(cacheName);
+          }
         })
       );
     })
@@ -23,36 +35,24 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch: Network first, fallback to cache
+// Estratégia: Tenta a rede primeiro, se cair (offline), busca no cache
 self.addEventListener('fetch', (event) => {
-  // Skip non-GET requests
-  if (event.request.method !== 'GET') {
-    return;
-  }
-
-  // Skip chrome extensions and other non-http requests
-  if (!event.request.url.startsWith('http')) {
+  if (event.request.method !== 'GET' || !event.request.url.startsWith('http')) {
     return;
   }
 
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        // Don't cache non-successful responses
-        if (!response || response.status !== 200) {
-          return response;
+        if (response && response.status === 200) {
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
         }
-
-        // Clone and cache successful responses
-        const responseToCache = response.clone();
-        caches.open(CACHE_VERSION).then((cache) => {
-          cache.put(event.request, responseToCache);
-        });
-
         return response;
       })
       .catch(() => {
-        // Return cached version if available
         return caches.match(event.request);
       })
   );
