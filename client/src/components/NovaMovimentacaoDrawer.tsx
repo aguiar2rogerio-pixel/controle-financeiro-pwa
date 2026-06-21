@@ -7,10 +7,18 @@
 
 import { useState } from "react";
 import { useFinance, Tabela } from "@/contexts/FinanceContext";
-import { hojeISO } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { X, Check } from "lucide-react";
 import { toast } from "sonner";
+
+// Função substituta para garantir a data local do Brasil no formato YYYY-MM-DD
+function obterDataLocalBrasil() {
+  const agora = new Date();
+  // Ajusta o fuso horário para o horário local brasileiro antes de converter para string
+  const offset = agora.getTimezoneOffset() * 60000;
+  const dataLocal = new Date(agora.getTime() - offset);
+  return dataLocal.toISOString().split("T")[0];
+}
 
 interface NovaMovimentacaoDrawerProps {
   aberto: boolean;
@@ -21,7 +29,7 @@ export function NovaMovimentacaoDrawer({ aberto, onFechar }: NovaMovimentacaoDra
   const { adicionar, obterCategoriasPorTabela } = useFinance();
 
   const [tabela, setTabela] = useState<Tabela>("fluxo");
-  const [data, setData] = useState(hojeISO());
+  const [data, setData] = useState(obterDataLocalBrasil()); // Correção do fuso horário aqui
   const [descricao, setDescricao] = useState("");
   const [categoriaId, setCategoriaId] = useState("");
   const [valorStr, setValorStr] = useState("");
@@ -30,7 +38,7 @@ export function NovaMovimentacaoDrawer({ aberto, onFechar }: NovaMovimentacaoDra
 
   function resetar() {
     setTabela("fluxo");
-    setData(hojeISO());
+    setData(obterDataLocalBrasil()); // Correção do fuso horário aqui também
     setDescricao("");
     setCategoriaId("");
     setValorStr("");
@@ -50,7 +58,11 @@ export function NovaMovimentacaoDrawer({ aberto, onFechar }: NovaMovimentacaoDra
       toast.error("Selecione a categoria.");
       return;
     }
-    const num = parseFloat(valorStr.replace(",", "."));
+    
+    // Remove qualquer espaço em branco que o teclado Samsung tenha inserido
+    const valorLimpo = valorStr.replace(/\s/g, "");
+    const num = parseFloat(valorLimpo.replace(",", "."));
+    
     if (isNaN(num) || num <= 0) {
       toast.error("Informe um valor válido maior que zero.");
       return;
@@ -177,20 +189,25 @@ export function NovaMovimentacaoDrawer({ aberto, onFechar }: NovaMovimentacaoDra
             </select>
           </div>
 
-          {/* Valor (sem sinal — aplicado automaticamente) */}
+          {/* Valor (Ajustado para impedir bugs de teclado mobile) */}
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
               Valor
             </label>
             <div className="flex gap-2">
               <input
-                type="number"
+                type="text"
                 inputMode="decimal"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck="false"
                 value={valorStr}
-                onChange={(e) => setValorStr(e.target.value)}
+                onChange={(e) => {
+                  // Remove espaços em tempo real enquanto digita para evitar falhas visuais
+                  setValorStr(e.target.value.replace(/\s/g, ""));
+                }}
                 placeholder="0,00"
-                min="0"
-                step="0.01"
                 className="flex-1 px-4 py-3 rounded-xl border border-slate-200 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-slate-300"
               />
               <div className="px-4 py-3 rounded-xl bg-slate-100 text-slate-600 text-sm font-semibold flex items-center justify-center min-w-[60px]">
@@ -217,3 +234,4 @@ export function NovaMovimentacaoDrawer({ aberto, onFechar }: NovaMovimentacaoDra
     </>
   );
 }
+
