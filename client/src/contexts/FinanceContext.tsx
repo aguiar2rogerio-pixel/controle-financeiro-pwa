@@ -7,6 +7,7 @@
  */
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { hojeISO } from "@/lib/format";
 
 export type Tabela = "fluxo" | "giro";
 export type TipoCategoria = "credito" | "debito";
@@ -121,7 +122,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   const obterCategoriaPorId = useCallback((id: string) => categorias.find((c) => c.id === id), [categorias]);
 
   const executarTransferencia = useCallback((origem: string, destino: string, valor: number) => {
-    const dataHoje = new Date().toISOString().slice(0, 10);
+    const dataHoje = hojeISO();
 
     const obterCategoriaId = (tipoConta: string, isEntrada: boolean) => {
       if (tipoConta === "manutencao") return "cat-manutencao";

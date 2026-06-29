@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useFinance } from "@/contexts/FinanceContext";
+import { hojeISO } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,7 +31,7 @@ export default function Home() {
   const [descricao, setDescricao] = useState("");
   const [categoriaId, setCategoriaId] = useState("");
   const [valor, setValor] = useState("");
-  const [data, setData] = useState(new Date().toISOString().slice(0, 10));
+  const [data, setData] = useState(hojeISO());
 
   // Estados do formulário de transferência (Ajustado para padrão estável inicial)
   const [origem, setOrigem] = useState("fluxo");
@@ -289,7 +290,7 @@ export default function Home() {
                   inputMode="decimal"
                   placeholder="0,00"
                   value={valorTransferencia}
-                  onChange={(e) => setValorTransferencia(e.target.value)}
+                  onChange={(e) => setValorTransferencia(e.target.value.replace(/\s/g, ""))}
                   className="bg-[#1e2230] border-gray-800 text-white placeholder-gray-600 rounded-lg h-12 text-base"
                 />
               </div>
@@ -335,7 +336,7 @@ export default function Home() {
               </div>
               <div>
                 <label className="text-[10px] font-bold text-gray-500 block mb-1 uppercase">Valor (R$)</label>
-                <Input type="text" inputMode="decimal" placeholder="0,00" value={valor} onChange={(e) => setValor(e.target.value)} className="bg-[#161924] border-gray-800 text-white" />
+                <Input type="text" inputMode="decimal" placeholder="0,00" value={valor} onChange={(e) => setValor(e.target.value.replace(/\s/g, ""))} className="bg-[#161924] border-gray-800 text-white" />
               </div>
               <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 font-bold h-11 text-sm mt-2">Salvar Registro</Button>
             </form>

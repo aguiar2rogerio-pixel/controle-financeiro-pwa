@@ -11,14 +11,7 @@ import { cn } from "@/lib/utils";
 import { X, Check } from "lucide-react";
 import { toast } from "sonner";
 
-// Função substituta para garantir a data local do Brasil no formato YYYY-MM-DD
-function obterDataLocalBrasil() {
-  const agora = new Date();
-  // Ajusta o fuso horário para o horário local brasileiro antes de converter para string
-  const offset = agora.getTimezoneOffset() * 60000;
-  const dataLocal = new Date(agora.getTime() - offset);
-  return dataLocal.toISOString().split("T")[0];
-}
+import { hojeISO } from "@/lib/format";
 
 interface NovaMovimentacaoDrawerProps {
   aberto: boolean;
@@ -29,7 +22,7 @@ export function NovaMovimentacaoDrawer({ aberto, onFechar }: NovaMovimentacaoDra
   const { adicionar, obterCategoriasPorTabela } = useFinance();
 
   const [tabela, setTabela] = useState<Tabela>("fluxo");
-  const [data, setData] = useState(obterDataLocalBrasil()); // Correção do fuso horário aqui
+  const [data, setData] = useState(hojeISO());
   const [descricao, setDescricao] = useState("");
   const [categoriaId, setCategoriaId] = useState("");
   const [valorStr, setValorStr] = useState("");
@@ -38,7 +31,7 @@ export function NovaMovimentacaoDrawer({ aberto, onFechar }: NovaMovimentacaoDra
 
   function resetar() {
     setTabela("fluxo");
-    setData(obterDataLocalBrasil()); // Correção do fuso horário aqui também
+    setData(hojeISO());
     setDescricao("");
     setCategoriaId("");
     setValorStr("");

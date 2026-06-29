@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useFinance, Categoria, TipoCategoria } from "@/contexts/FinanceContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 export default function Categorias() {
   const { categorias, adicionarCategoria, editarCategoria, removerCategoria } = useFinance();
@@ -65,12 +66,30 @@ export default function Categorias() {
         <div className="grid grid-cols-4 gap-2">
           <div className="flex flex-col gap-1">
             <label className="text-[10px] text-zinc-400 font-semibold uppercase">Emoji</label>
-            <input 
-              type="text" 
-              value={novoEmoji} 
-              onChange={(e) => setNovoEmoji(e.target.value)}
-              className="bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-center text-base focus:outline-none focus:border-zinc-700"
-            />
+            <Popover>
+              <PopoverTrigger asChild>
+                <button 
+                  type="button"
+                  className="bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-center text-base focus:outline-none focus:border-zinc-700 w-full"
+                >
+                  {novoEmoji}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64 bg-zinc-900 border-zinc-800 p-2">
+                <div className="grid grid-cols-6 gap-1">
+                  {["💰", "⛽", "🔧", "👤", "🏦", "🍽️", "🚗", "📦", "⚙️", "📌", "🛒", "🏠", "📱", "🏥", "🎓", "🎮", "🍕", "✈️"].map((e) => (
+                    <button
+                      key={e}
+                      type="button"
+                      onClick={() => setNovoEmoji(e)}
+                      className="text-xl p-2 hover:bg-zinc-800 rounded-lg transition-colors"
+                    >
+                      {e}
+                    </button>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
           <div className="col-span-3 flex flex-col gap-1">
             <label className="text-[10px] text-zinc-400 font-semibold uppercase">Nome da Categoria</label>
@@ -170,12 +189,30 @@ export default function Categorias() {
             <div className="grid grid-cols-4 gap-2">
               <div className="flex flex-col gap-1">
                 <label className="text-[10px] text-zinc-400 font-semibold uppercase">Emoji</label>
-                <input 
-                  type="text" 
-                  value={emojiEditado} 
-                  onChange={(e) => setEmojiEditado(e.target.value)}
-                  className="bg-zinc-950 border border-zinc-800 rounded-xl p-2 text-center text-base focus:outline-none focus:border-zinc-700"
-                />
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button 
+                      type="button"
+                      className="bg-zinc-950 border border-zinc-800 rounded-xl p-2 text-center text-base focus:outline-none focus:border-zinc-700 w-full"
+                    >
+                      {emojiEditado}
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-64 bg-zinc-900 border-zinc-800 p-2">
+                    <div className="grid grid-cols-6 gap-1">
+                      {["💰", "⛽", "🔧", "👤", "🏦", "🍽️", "🚗", "📦", "⚙️", "📌", "🛒", "🏠", "📱", "🏥", "🎓", "🎮", "🍕", "✈️"].map((e) => (
+                        <button
+                          key={e}
+                          type="button"
+                          onClick={() => setEmojiEditado(e)}
+                          className="text-xl p-2 hover:bg-zinc-800 rounded-lg transition-colors"
+                        >
+                          {e}
+                        </button>
+                      ))}
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
               <div className="col-span-3 flex flex-col gap-1">
                 <label className="text-[10px] text-zinc-400 font-semibold uppercase">Nome</label>

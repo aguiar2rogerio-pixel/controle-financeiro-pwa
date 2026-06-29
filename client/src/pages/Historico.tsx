@@ -286,7 +286,7 @@ export default function Historico() {
               </div>
               <div>
                 <label className="text-[10px] font-bold text-gray-500 block mb-1 uppercase">Valor (R$)</label>
-                <Input type="text" inputMode="decimal" value={editValor} onChange={(e) => setEditValor(e.target.value)} className="bg-[#161924] border-gray-800 text-white" />
+                <Input type="text" inputMode="decimal" value={editValor} onChange={(e) => setEditValor(e.target.value.replace(/\s/g, ""))} className="bg-[#161924] border-gray-800 text-white" />
               </div>
               <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 font-bold h-11 text-sm mt-2">Salvar Alterações</Button>
             </form>
