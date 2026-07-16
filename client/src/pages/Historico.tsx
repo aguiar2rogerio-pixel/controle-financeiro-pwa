@@ -72,20 +72,28 @@ export default function Historico() {
     return categorias.filter(c => c.tipo === catAntiga?.tipo);
   }, [categorias, editId, movimentacoes]);
 
-  // Lógica de filtragem unificada por período de datas
+  // Lógica de filtragem corrigida e robusta
   const movimentacoesFiltradas = useMemo(() => {
-    return (movimentacoes || []).filter((m) => {
-      const cat = categorias.find((c) => c.id === m.categoriaId);
-      
-      if (filtroCategoria !== "todos" && m.categoriaId !== filtroCategoria) return false;
-      if (filtroTipo !== "todos" && cat?.tipo !== filtroTipo) return false;
-      
-      // Filtro de Período (Data Inicial até Data Final)
-      if (dataInicial && m.data < dataInicial) return false;
-      if (dataFinal && m.data > dataFinal) return false;
+    return (movimentacoes || [])
+      .filter((m) => {
+        const cat = categorias.find((c) => c.id === m.categoriaId);
+        
+        // Filtro por Categoria e Tipo
+        if (filtroCategoria !== "todos" && m.categoriaId !== filtroCategoria) return false;
+        if (filtroTipo !== "todos" && cat?.tipo !== filtroTipo) return false;
+        
+        // Filtro de Datas (Comparação segura por objetos Date)
+        const dataLancamento = new Date(m.data + 'T00:00:00');
+        const inicioPeriodo = dataInicial ? new Date(dataInicial + 'T00:00:00') : null;
+        const fimPeriodo = dataFinal ? new Date(dataFinal + 'T23:59:59') : null;
 
-      return true;
-    });
+        if (inicioPeriodo && dataLancamento < inicioPeriodo) return false;
+        if (fimPeriodo && dataLancamento > fimPeriodo) return false;
+
+        return true;
+      })
+      // ORGANIZAÇÃO: Deixa sempre o mais recente no topo
+      .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
   }, [movimentacoes, categorias, filtroCategoria, filtroTipo, dataInicial, dataFinal]);
 
   // Cálculo do Saldo Filtrado Realista

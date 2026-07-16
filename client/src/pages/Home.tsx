@@ -87,7 +87,9 @@ export default function Home() {
   };
 
   const ultimosLancamentos = useMemo(() => {
-    return (movimentacoes || []).slice(0, 5);
+    return (movimentacoes || [])
+      .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())
+      .slice(0, 5);
   }, [movimentacoes]);
 
   // CORREÇÃO DOS SINAIS: Mantém exibição positiva estável nos cards de caixinha

@@ -96,6 +96,37 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   const [movimentacoes, setMovimentacoes] = useState<Movimentacao[]>(carregarMovimentacoes);
   const [categorias, setCategorias] = useState<Categoria[]>(carregarCategorias);
 
+  // FUNÇÃO MÁGICA: Padroniza datas antigas ou mal formatadas para o padrão ISO (YYYY-MM-DD)
+  useEffect(() => {
+    let houveMudanca = false;
+    const novasMovimentacoes = movimentacoes.map(m => {
+      // 1. Corrige formato manual antigo (DD/MM/YYYY) para ISO
+      if (m.data.includes("/")) {
+        const [dia, mes, ano] = m.data.split("/");
+        const dataNova = `${ano}-${mes}-${dia}`;
+        houveMudanca = true;
+        return { ...m, data: dataNova };
+      }
+      // 2. Garante que datas ISO tenham zeros à esquerda (ex: 2024-7-9 -> 2024-07-09)
+      const partesData = m.data.split("-");
+      if (partesData.length === 3) {
+        const ano = partesData[0];
+        const mes = partesData[1].padStart(2, '0');
+        const dia = partesData[2].padStart(2, '0');
+        const dataPadronizada = `${ano}-${mes}-${dia}`;
+        if (dataPadronizada !== m.data) {
+          houveMudanca = true;
+          return { ...m, data: dataPadronizada };
+        }
+      }
+      return m;
+    });
+
+    if (houveMudanca) {
+      setMovimentacoes(novasMovimentacoes);
+    }
+  }, [movimentacoes]);
+
   useEffect(() => { localStorage.setItem(STORAGE_KEY_MOVIMENTACOES, JSON.stringify(movimentacoes)); }, [movimentacoes]);
   useEffect(() => { localStorage.setItem(STORAGE_KEY_CATEGORIAS, JSON.stringify(categorias)); }, [categorias]);
 
