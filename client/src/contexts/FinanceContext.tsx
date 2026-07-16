@@ -127,6 +127,48 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     }
   }, [movimentacoes]);
 
+  // FUNÇÃO DE UNIFICAÇÃO: Resolve o problema de categorias duplicadas (ex: Combustível com 2 IDs)
+  useEffect(() => {
+    const nomesParaUnificar = ["Combustível", "Combustivel", "Alimentação", "Alimentacao", "Pessoal"];
+    let houveMudanca = false;
+
+    // 1. Identifica categorias que devem ser unificadas com as categorias padrão (cat-xxx)
+    const categoriasMapeadas = categorias.map(c => {
+      const nomeLimpo = c.nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+      
+      // Se for uma categoria customizada que tem nome igual a uma padrão, vamos marcar para migrar
+      const padraoCorrespondente = CATEGORIAS_PADRAO.find(cp => 
+        cp.nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === nomeLimpo
+      );
+
+      if (padraoCorrespondente && c.id !== padraoCorrespondente.id) {
+        return { antigoId: c.id, novoId: padraoCorrespondente.id };
+      }
+      return null;
+    }).filter(Boolean) as { antigoId: string, novoId: string }[];
+
+    if (categoriasMapeadas.length > 0) {
+      // 2. Move os lançamentos das categorias duplicadas para as oficiais
+      const novasMovs = movimentacoes.map(m => {
+        const mapeamento = categoriasMapeadas.find(map => map.antigoId === m.categoriaId);
+        if (mapeamento) {
+          houveMudanca = true;
+          return { ...m, categoriaId: mapeamento.novoId };
+        }
+        return m;
+      });
+
+      // 3. Remove as categorias duplicadas da lista de categorias
+      const IDsAntigos = categoriasMapeadas.map(map => map.antigoId);
+      const novasCats = categorias.filter(c => !IDsAntigos.includes(c.id));
+
+      if (houveMudanca || novasCats.length !== categorias.length) {
+        setMovimentacoes(novasMovs);
+        setCategorias(novasCats);
+      }
+    }
+  }, [movimentacoes, categorias]);
+
   useEffect(() => { localStorage.setItem(STORAGE_KEY_MOVIMENTACOES, JSON.stringify(movimentacoes)); }, [movimentacoes]);
   useEffect(() => { localStorage.setItem(STORAGE_KEY_CATEGORIAS, JSON.stringify(categorias)); }, [categorias]);
 
