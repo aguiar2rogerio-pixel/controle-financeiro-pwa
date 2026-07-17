@@ -189,7 +189,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   const obterCategoriasPorTabela = useCallback((_tabela: Tabela) => categorias, [categorias]);
   const obterCategoriaPorId = useCallback((id: string) => categorias.find((c) => c.id === id), [categorias]);
 
-  const ejecutarTransferencia = useCallback((origem: string, destino: string, valor: number) => {
+  const executarTransferencia = useCallback((origem: string, destino: string, valor: number) => {
     const dataHoje = hojeISO();
     const tokenTransf = `transf-${gerarId()}`;
 
