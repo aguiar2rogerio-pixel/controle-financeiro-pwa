@@ -80,7 +80,11 @@ export default function Historico() {
         
         // Filtro por Categoria e Tipo
         if (filtroCategoria !== "todos" && m.categoriaId !== filtroCategoria) return false;
-        if (filtroTipo !== "todos" && cat?.tipo !== filtroTipo) return false;
+        
+        // LIMPEZA: Oculta transferências internas quando filtra especificamente por Entradas ou Saídas
+        if (filtroTipo === "credito" && cat?.tipo !== "credito") return false;
+        if (filtroTipo === "debito" && cat?.tipo !== "debito") return false;
+        if (filtroTipo === "todos" && cat?.tipo === "transferencia" && filtroCategoria === "todos") return true; // Mostra no geral
         
         // Filtro de Datas (Comparação segura por objetos Date)
         const dataLancamento = new Date(m.data + 'T00:00:00');
@@ -219,8 +223,18 @@ export default function Historico() {
           movimentacoesFiltradas.map((m) => {
             const cat = categorias.find((c) => c.id === m.categoriaId);
             const isCredito = cat?.tipo === "credito";
+            const isTransferencia = cat?.tipo === "transferencia";
             const [ano, mes, dia] = m.data.split("-");
             const dataFormatada = dia && mes ? `${dia}/${mes}` : m.data;
+
+            // Define a cor e o sinal com base no tipo
+            let corValor = isCredito ? "text-emerald-400" : "text-rose-400";
+            let sinal = isCredito ? "+" : "-";
+            
+            if (isTransferencia) {
+              corValor = "text-blue-400";
+              sinal = m.descricao.startsWith("Transf. para") ? "-" : "+";
+            }
 
             return (
               <div key={m.id} className="bg-[#1e2230] border border-gray-800/80 rounded-xl p-4 flex flex-col gap-3 shadow-sm">
@@ -230,12 +244,12 @@ export default function Historico() {
                     <div>
                       <h4 className="font-bold text-sm text-gray-200">{m.descricao}</h4>
                       <p className="text-[10px] text-gray-500 capitalize">
-                        {dataFormatada} • {m.tabela === "giro" ? "Capital de Giro" : "Fluxo Diário"} • {cat?.nome}
+                        {dataFormatada} • {m.tabela === "giro" ? "Capital de Giro" : m.tabela === "reserva" ? "Fundo de Reserva" : "Fluxo Diário"} • {cat?.nome}
                       </p>
                     </div>
                   </div>
-                  <span className={`text-base font-black ${isCredito ? "text-emerald-400" : "text-rose-400"}`}>
-                    {isCredito ? "+" : "-"} R$ {m.valor.toFixed(2).replace(".", ",")}
+                  <span className={`text-base font-black ${corValor}`}>
+                    {sinal} R$ {m.valor.toFixed(2).replace(".", ",")}
                   </span>
                 </div>
 

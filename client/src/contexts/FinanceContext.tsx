@@ -9,8 +9,8 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { hojeISO } from "@/lib/format";
 
-export type Tabela = "fluxo" | "giro";
-export type TipoCategoria = "credito" | "debito";
+export type Tabela = "fluxo" | "giro" | "reserva";
+export type TipoCategoria = "credito" | "debito" | "transferencia";
 export type EscopoCategoria = "fluxo" | "giro" | "ambos";
 
 export interface Categoria {
@@ -43,6 +43,7 @@ const CATEGORIAS_PADRAO: Categoria[] = [
   { id: "cat-fornecedor", nome: "Fornecedor", tipo: "debito", escopo: "ambos", emoji: "📦", criadoEm: Date.now() },
   { id: "cat-operacional", nome: "Operacional", tipo: "debito", escopo: "ambos", emoji: "⚙️", criadoEm: Date.now() },
   { id: "cat-fundo-reserva", nome: "Fundo de Reserva", tipo: "credito", escopo: "ambos", emoji: "🏦", criadoEm: Date.now() },
+  { id: "cat-transferencia", nome: "Transferência Interna", tipo: "transferencia", escopo: "ambos", emoji: "🔄", criadoEm: Date.now() },
   { id: "cat-outros", nome: "Outros", tipo: "debito", escopo: "ambos", emoji: "📌", criadoEm: Date.now() },
 ];
 
@@ -83,8 +84,10 @@ interface FinanceContextValue {
   obterCategoriaPorId: (id: string) => Categoria | undefined;
   saldoFluxo: number;
   saldoGiro: number;
+  saldoReserva: number;
   totalManutencao: number;
   totalFundoReserva: number;
+  manutencaoPorMes: { mes: string, total: number }[];
   executarTransferencia: (origem: string, destino: string, valor: number) => void;
   exportarBackup: () => void;
   importarBackup: (file: File) => void;
@@ -197,39 +200,33 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   const executarTransferencia = useCallback((origem: string, destino: string, valor: number) => {
     const dataHoje = hojeISO();
 
-    const obterCategoriaId = (tipoConta: string, isEntrada: boolean) => {
-      if (tipoConta === "manutencao") return "cat-manutencao";
-      if (tipoConta === "reserva") return "cat-fundo-reserva";
-      return isEntrada ? "cat-receita" : "cat-operacional"; 
-    };
-
-    const obterTabelaFisica = (tipoConta: string): Tabela => {
-      if (tipoConta === "giro") return "giro";
+    const obterTabelaFisica = (idConta: string): Tabela => {
+      if (idConta === "giro") return "giro";
+      if (idConta === "reserva") return "reserva";
       return "fluxo";
     };
 
     const nomeContaFormatado = (idConta: string) => {
       if (idConta === "fluxo") return "Fluxo Diário";
       if (idConta === "giro") return "Capital de Giro";
-      if (idConta === "manutencao") return "Manutenção";
       return "Fundo de Reserva";
     };
 
-    // 1. Lançamento de saída da conta origem
+    // 1. Lançamento de saída da conta origem (Neutro)
     adicionar({
       tabela: obterTabelaFisica(origem),
       data: dataHoje,
       descricao: `Transf. para ${nomeContaFormatado(destino)}`,
-      categoriaId: obterCategoriaId(origem, false),
+      categoriaId: "cat-transferencia",
       valor: valor
     });
 
-    // 2. Lançamento de entrada na conta destino
+    // 2. Lançamento de entrada na conta destino (Neutro)
     adicionar({
       tabela: obterTabelaFisica(destino),
       data: dataHoje,
       descricao: `Transf. de ${nomeContaFormatado(origem)}`,
-      categoriaId: obterCategoriaId(destino, true),
+      categoriaId: "cat-transferencia",
       valor: valor
     });
   }, [adicionar]);
@@ -264,11 +261,25 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   const saldoFluxo = movimentacoes.filter(m => m.tabela === "fluxo").reduce((acc, m) => {
     const cat = obterCategoriaPorId(m.categoriaId);
+    if (cat?.tipo === "transferencia") {
+      return m.descricao.startsWith("Transf. para") ? acc - m.valor : acc + m.valor;
+    }
     return acc + (cat?.tipo === "credito" ? m.valor : -m.valor);
   }, 0);
 
   const saldoGiro = movimentacoes.filter(m => m.tabela === "giro").reduce((acc, m) => {
     const cat = obterCategoriaPorId(m.categoriaId);
+    if (cat?.tipo === "transferencia") {
+      return m.descricao.startsWith("Transf. para") ? acc - m.valor : acc + m.valor;
+    }
+    return acc + (cat?.tipo === "credito" ? m.valor : -m.valor);
+  }, 0);
+
+  const saldoReserva = movimentacoes.filter(m => m.tabela === "reserva").reduce((acc, m) => {
+    const cat = obterCategoriaPorId(m.categoriaId);
+    if (cat?.tipo === "transferencia") {
+      return m.descricao.startsWith("Transf. para") ? acc - m.valor : acc + m.valor;
+    }
     return acc + (cat?.tipo === "credito" ? m.valor : -m.valor);
   }, 0);
 
@@ -282,8 +293,33 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     return acc + (cat?.tipo === "credito" ? m.valor : -m.valor);
   }, 0);
 
+  const manutencaoPorMes = useMemo(() => {
+    const meses: { [key: string]: number } = {};
+    movimentacoes
+      .filter(m => obterCategoriaPorId(m.categoriaId)?.nome === "Manutenção")
+      .forEach(m => {
+        const [ano, mes] = m.data.split("-");
+        const chave = `${mes}/${ano}`;
+        const cat = obterCategoriaPorId(m.categoriaId);
+        const valor = cat?.tipo === "credito" ? m.valor : -m.valor;
+        meses[chave] = (meses[chave] || 0) + valor;
+      });
+    
+    return Object.entries(meses)
+      .map(([mes, total]) => ({ mes, total }))
+      .sort((a, b) => {
+        const [mA, aA] = a.mes.split("/");
+        const [mB, aB] = b.mes.split("/");
+        return new Date(parseInt(aB), parseInt(mB)-1).getTime() - new Date(parseInt(aA), parseInt(mA)-1).getTime();
+      });
+  }, [movimentacoes, obterCategoriaPorId]);
+
   return (
-    <FinanceContext.Provider value={{ movimentacoes, adicionar, remover, categorias, adicionarCategoria, editarCategoria, removerCategoria, obterCategoriasPorTabela, obterCategoriaPorId, saldoFluxo, saldoGiro, totalManutencao, totalFundoReserva, executarTransferencia, exportarBackup, importarBackup }}>
+    <FinanceContext.Provider value={{ 
+      movimentacoes, adicionar, remover, categorias, adicionarCategoria, editarCategoria, removerCategoria, 
+      obterCategoriasPorTabela, obterCategoriaPorId, saldoFluxo, saldoGiro, saldoReserva, totalManutencao, 
+      totalFundoReserva, manutencaoPorMes, executarTransferencia, exportarBackup, importarBackup 
+    }}>
       {children}
     </FinanceContext.Provider>
   );

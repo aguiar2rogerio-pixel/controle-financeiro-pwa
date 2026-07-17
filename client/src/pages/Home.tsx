@@ -13,8 +13,10 @@ export default function Home() {
     categorias = [], 
     saldoFluxo, 
     saldoGiro, 
+    saldoReserva,
     totalManutencao, 
     totalFundoReserva, 
+    manutencaoPorMes,
     adicionar, 
     remover,
     executarTransferencia,
@@ -38,10 +40,11 @@ export default function Home() {
   const [destino, setDestino] = useState("giro");
   const [valorTransferencia, setValorTransferencia] = useState("");
 
-  // BLINDAGEM: Lista de contas reduzida apenas para as tabelas físicas reais
+  // BLINDAGEM: Lista de contas expandida para incluir Reserva
   const listaContas = [
     { id: "fluxo", nome: "Saldo Fluxo Diário" },
-    { id: "giro", nome: "Capital de Giro" }
+    { id: "giro", nome: "Capital de Giro" },
+    { id: "reserva", nome: "Fundo de Reserva" }
   ];
 
   const categoriesFiltradas = useMemo(() => {
@@ -144,21 +147,45 @@ export default function Home() {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-2 gap-4">
-          <Card className="bg-[#1e2230] border-gray-800">
-            <CardContent className="p-4">
-              <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider">Manutenção</p>
-              <h3 className="text-xl font-bold text-white mt-1">R$ {exibicaoManutencao.toFixed(2).replace(".", ",")}</h3>
-            </CardContent>
-          </Card>
+        <Card className="bg-[#1e2230] border-gray-800 shadow-xl">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div>
+              <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider">Fundo de Reserva (Poupança)</p>
+              <h2 className="text-3xl font-extrabold text-emerald-400 mt-1">R$ {saldoReserva.toFixed(2).replace(".", ",")}</h2>
+            </div>
+            <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-400">
+              <Plus className="h-6 w-6" />
+            </div>
+          </CardContent>
+        </Card>
 
-          <Card className="bg-[#1e2230] border-gray-800">
-            <CardContent className="p-4">
-              <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider">Fundo de Reserva</p>
-              <h3 className="text-xl font-bold text-emerald-400 mt-1">R$ {exibicaoReserva.toFixed(2).replace(".", ",")}</h3>
-            </CardContent>
-          </Card>
-        </div>
+        {/* Painel de Manutenção com Pílulas Históricas */}
+        <Card className="bg-[#1e2230] border-gray-800 shadow-xl overflow-hidden">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider">Manutenção (Mês Atual)</p>
+                <h2 className="text-2xl font-extrabold text-white mt-1">R$ {exibicaoManutencao.toFixed(2).replace(".", ",")}</h2>
+              </div>
+              <div className="p-2.5 bg-gray-500/10 rounded-lg text-gray-400">
+                <Settings className="h-5 w-5" />
+              </div>
+            </div>
+            
+            {/* Pílulas de Histórico */}
+            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+              {manutencaoPorMes.map((item, idx) => (
+                <div key={idx} className="flex-shrink-0 bg-[#12141c] border border-gray-800 rounded-full px-4 py-1.5">
+                  <span className="text-[10px] font-bold text-gray-500 uppercase mr-2">{item.mes}</span>
+                  <span className="text-xs font-black text-gray-200">R$ {Math.abs(item.total).toFixed(2).replace(".", ",")}</span>
+                </div>
+              ))}
+              {manutencaoPorMes.length === 0 && (
+                <p className="text-[10px] text-gray-600 italic">Nenhum histórico de manutenção.</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Botões Administrativos e a Nova Transferência */}
@@ -207,26 +234,38 @@ export default function Home() {
           ) : (
             ultimosLancamentos.map((m) => {
               const cat = categorias.find(c => c.id === m.categoriaId);
-              const isCredito = cat?.tipo === "credito";
-              return (
-                <div key={m.id} className="bg-[#1e2230] border border-gray-800/60 rounded-xl p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="text-xl bg-[#161924] p-2 rounded-lg border border-gray-800">{cat?.emoji || "📌"}</span>
-                    <div>
-                      <h4 className="font-bold text-sm text-gray-200">{m.descricao}</h4>
-                      <p className="text-[10px] text-gray-500 capitalize">{m.tabela} • {cat?.nome}</p>
-                    </div>
-                  </div>
-                  <div className="text-right flex items-center gap-3">
-                    <span className={`text-base font-bold ${isCredito ? "text-emerald-400" : "text-rose-400"}`}>
-                      {isCredito ? "+" : "-"} R$ {m.valor.toFixed(2).replace(".", ",")}
-                    </span>
-                    <button onClick={() => confirm("Deletar lançamento?") && remover(m.id)} className="text-gray-600 hover:text-rose-400">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+            const isCredito = cat?.tipo === "credito";
+            const isTransferencia = cat?.tipo === "transferencia";
+            
+            let corValor = isCredito ? "text-emerald-400" : "text-rose-400";
+            let sinal = isCredito ? "+" : "-";
+            
+            if (isTransferencia) {
+              corValor = "text-blue-400";
+              sinal = m.descricao.startsWith("Transf. para") ? "-" : "+";
+            }
+
+            return (
+              <div key={m.id} className="bg-[#1e2230] border border-gray-800/60 rounded-xl p-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-xl bg-[#161924] p-2 rounded-lg border border-gray-800">{cat?.emoji || "📌"}</span>
+                  <div>
+                    <h4 className="font-bold text-sm text-gray-200">{m.descricao}</h4>
+                    <p className="text-[10px] text-gray-500 capitalize">
+                      {m.tabela === "giro" ? "Giro" : m.tabela === "reserva" ? "Reserva" : "Fluxo"} • {cat?.nome}
+                    </p>
                   </div>
                 </div>
-              );
+                <div className="text-right flex items-center gap-3">
+                  <span className={`text-base font-bold ${corValor}`}>
+                    {sinal} R$ {m.valor.toFixed(2).replace(".", ",")}
+                  </span>
+                  <button onClick={() => confirm("Deletar lançamento?") && remover(m.id)} className="text-gray-600 hover:text-rose-400">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            );
             })
           )}
         </div>
