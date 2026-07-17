@@ -14,8 +14,6 @@ export default function Home() {
     saldoFluxo, 
     saldoGiro, 
     saldoReserva,
-    totalManutencao, 
-    totalFundoReserva, 
     manutencaoPorMes,
     adicionar, 
     remover,
@@ -28,7 +26,7 @@ export default function Home() {
   const [isTransferOpen, setIsTransferOpen] = useState(false);
   const [tipoForm, setTipoForm] = useState<"credito" | "debito">("credito");
 
-  // Estados para os novos modais de histórico individual
+  // Estados para os modais de histórico individual
   const [isReservaModalOpen, setIsReservaModalOpen] = useState(false);
   const [isManutencaoModalOpen, setIsManutencaoModalOpen] = useState(false);
 
@@ -98,29 +96,51 @@ export default function Home() {
       .slice(0, 5);
   }, [movimentacoes]);
 
-  // Filtro de Entradas da Reserva para o Histórico solicitado
-  const historicoEntradasReserva = useMemo(() => {
-    return (movimentacoes || [])
-      .filter(m => m.tabela === "reserva" && m.descricao.toLowerCase().includes("transf"))
-      .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
-  }, [movimentacoes]);
+  // Texto do mês corrente formatado (Ex: "Julho/2026" ou "07/2026")
+  const mesAnoAtualChave = useMemo(() => {
+    const dataAtual = new Date();
+    const mes = String(dataAtual.getMonth() + 1).padStart(2, '0');
+    return `${mes}/${dataAtual.getFullYear()}`;
+  }, []);
 
-  const totalAcumuladoReservaHistorico = useMemo(() => {
-    return historicoEntradasReserva.reduce((sum, m) => sum + m.valor, 0);
-  }, [historicoEntradasReserva]);
-
-  const totalAcumuladoManutencaoHistorico = useMemo(() => {
-    return manutencaoPorMes.reduce((sum, item) => sum + Math.abs(item.total), 0);
-  }, [manutencaoPorMes]);
-
-  const exibicaoManutencao = totalManutencao * -1;
-
-  // Formata o mês corrente de forma elegante (Ex: "Julho/2026")
   const mesCorrenteTexto = useMemo(() => {
     const dataAtual = new Date();
     const mes = dataAtual.toLocaleDateString('pt-BR', { month: 'long' });
     return `${mes.replace(/^\w/, (c) => c.toUpperCase())}/${dataAtual.getFullYear()}`;
   }, []);
+
+  // 1. BLINDAGEM DA RESERVA: Filtra estritamente pela categoria "Fundo de Reserva" e apenas entradas (> 0)
+  const historicoEntradasReserva = useMemo(() => {
+    const categoriaReserva = categorias.find(c => c.nome.toLowerCase() === "fundo de reserva");
+    return (movimentacoes || [])
+      .filter(m => m.categoriaId === categoriaReserva?.id && m.valor > 0)
+      .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
+  }, [movimentacoes, categorias]);
+
+  // Agrupa as entradas da Reserva por mês para mostrar o histórico estruturado anterior
+  const reservaPorMes = useMemo(() => {
+    const grupos: { [key: string]: number } = {};
+    historicoEntradasReserva.forEach(m => {
+      const dataM = new Date(m.data);
+      const mesChave = `${String(dataM.getMonth() + 1).padStart(2, '0')}/${dataM.getFullYear()}`;
+      grupos[mesChave] = (grupos[mesChave] || 0) + m.valor;
+    });
+    return Object.entries(grupos).map(([mes, total]) => ({ mes, total }));
+  }, [historicoEntradasReserva]);
+
+  const totalAcumuladoReservaHistorico = useMemo(() => {
+    return historicoEntradasReserva.reduce((sum, m) => sum + m.valor, 0);
+  }, [historicoEntradasReserva]);
+
+  // 2. CORREÇÃO DA MANUTENÇÃO: Busca o valor do mês corrente na lista ou zera se não houver registros
+  const valorManutencaoMesAtual = useMemo(() => {
+    const registroMes = (manutencaoPorMes || []).find(item => item.mes === mesAnoAtualChave);
+    return registroMes ? Math.abs(registroMes.total) : 0;
+  }, [manutencaoPorMes, mesAnoAtualChave]);
+
+  const totalAcumuladoManutencaoHistorico = useMemo(() => {
+    return (manutencaoPorMes || []).reduce((sum, item) => sum + Math.abs(item.total), 0);
+  }, [manutencaoPorMes]);
 
   return (
     <div className="min-h-screen bg-[#12141c] text-white p-4 pb-28 font-sans">
@@ -199,7 +219,7 @@ export default function Home() {
                     <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider">Manutenção</p>
                     <span className="text-[9px] text-gray-500 font-semibold bg-[#12141c] px-1.5 py-0.5 rounded border border-gray-800/50">{mesCorrenteTexto}</span>
                   </div>
-                  <h2 className="text-xl font-extrabold text-white mt-1.5">R$ {exibicaoManutencao.toFixed(2).replace(".", ",")}</h2>
+                  <h2 className="text-xl font-extrabold text-white mt-1.5">R$ {valorManutencaoMesAtual.toFixed(2).replace(".", ",")}</h2>
                 </div>
                 <button 
                   onClick={() => setIsManutencaoModalOpen(true)}
@@ -297,7 +317,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* BARRA INFERIOR FIXA COM OS BOTÕES DE ENTRADA E SAÍDA */}
+      {/* BARRA INFERIOR FIXA */}
       <div className="fixed bottom-0 left-0 right-0 bg-[#12141c]/90 backdrop-blur-md border-t border-gray-800/80 p-4 grid grid-cols-2 gap-4 z-40 shadow-2xl">
         <Button 
           onClick={() => abrirFormulario("credito")} 
@@ -313,7 +333,7 @@ export default function Home() {
         </Button>
       </div>
 
-      {/* MODAL HISTÓRICO DE RESERVA (APENAS ENTRADAS/DEPOSITOS) */}
+      {/* MODAL HISTÓRICO DE RESERVA (ENTRADAS POR MÊS) */}
       {isReservaModalOpen && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-[#12141c] border border-gray-800 w-full max-w-sm rounded-xl overflow-hidden shadow-2xl">
@@ -328,17 +348,14 @@ export default function Home() {
             </div>
             <div className="p-5 space-y-4 max-h-[350px] overflow-y-auto">
               <div className="space-y-2">
-                {historicoEntradasReserva.map((item, idx) => (
+                {reservaPorMes.map((item, idx) => (
                   <div key={idx} className="flex justify-between items-center bg-[#1e2230] p-3 rounded-lg border border-gray-800">
-                    <div>
-                      <p className="text-xs font-bold text-gray-200">{item.descricao}</p>
-                      <p className="text-[9px] text-gray-500">{new Date(item.data).toLocaleDateString('pt-BR')}</p>
-                    </div>
-                    <span className="text-sm font-black text-emerald-400">+ R$ {item.valor.toFixed(2).replace(".", ",")}</span>
+                    <span className="text-xs font-bold text-gray-300 uppercase">{item.mes}</span>
+                    <span className="text-sm font-black text-emerald-400">+ R$ {item.total.toFixed(2).replace(".", ",")}</span>
                   </div>
                 ))}
-                {historicoEntradasReserva.length === 0 && (
-                  <p className="text-xs text-gray-500 italic text-center py-4">Nenhuma transferência de entrada registrada.</p>
+                {reservaPorMes.length === 0 && (
+                  <p className="text-xs text-gray-500 italic text-center py-4">Nenhuma economia mensal registrada.</p>
                 )}
               </div>
             </div>
@@ -350,7 +367,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* MODAL HISTÓRICO DE MANUTENÇÃO (REPASSES MENSAIS) */}
+      {/* MODAL HISTÓRICO DE MANUTENÇÃO */}
       {isManutencaoModalOpen && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-[#12141c] border border-gray-800 w-full max-w-sm rounded-xl overflow-hidden shadow-2xl">
