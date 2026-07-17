@@ -282,11 +282,15 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       }, 0);
   }, [movimentacoes, categorias]);
 
+  // CORREÇÃO: Resgata lançamentos antigos baseados na categoria "Fundo de Reserva" para não zerar o card
   const saldoReserva = useMemo(() => {
     return movimentacoes
-      .filter((m) => m.tabela === "reserva")
       .reduce((acc, m) => {
         const cat = categorias.find((c) => c.id === m.categoriaId);
+        const ehFundoReserva = m.tabela === "reserva" || cat?.id === "cat-fundo-reserva" || cat?.nome === "Fundo de Reserva";
+        
+        if (!ehFundoReserva) return acc;
+
         if (cat?.tipo === "transferencia") {
           return m.descricao.startsWith("Transf. para") ? acc - m.valor : acc + m.valor;
         }
@@ -302,8 +306,15 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }, [movimentacoes, categorias]);
 
   const totalFundoReserva = useMemo(() => {
-    return movimentacoes.filter(m => categorias.find(c => c.id === m.categoriaId)?.nome === "Fundo de Reserva").reduce((acc, m) => {
-      const cat = categorias.find(c => c.id === m.categoriaId);
+    return movimentacoes.reduce((acc, m) => {
+      const cat = categorias.find((c) => c.id === m.categoriaId);
+      const ehFundoReserva = m.tabela === "reserva" || cat?.id === "cat-fundo-reserva" || cat?.nome === "Fundo de Reserva";
+      
+      if (!ehFundoReserva) return acc;
+
+      if (cat?.tipo === "transferencia") {
+        return m.descricao.startsWith("Transf. para") ? acc - m.valor : acc + m.valor;
+      }
       return acc + (cat?.tipo === "credito" ? m.valor : -m.valor);
     }, 0);
   }, [movimentacoes, categorias]);
@@ -327,7 +338,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         const [mB, aB] = b.mes.split("/");
         return new Date(parseInt(aB), parseInt(mB)-1).getTime() - new Date(parseInt(aA), parseInt(mA)-1).getTime();
       });
-  }, [movimentacoes, ...categorias]);
+  }, [movimentacoes, categorias]);
 
   return (
     <FinanceContext.Provider value={{ 
