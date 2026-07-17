@@ -1,9 +1,5 @@
 /**
  * FinanceContext — Estado global do app de controle financeiro.
- * Design: Ledger Moderno — mobile-first, saldos em destaque, cor semântica.
- *
- * Armazena movimentações e categorias em localStorage para persistência local (PWA).
- * Duas tabelas: "fluxo" (Controle Fluxo Diário) e "giro" (Capital de Giro Operacional).
  */
 
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
@@ -29,6 +25,7 @@ export interface Movimentacao {
   descricao: string;
   categoriaId: string;
   valor: number;
+  transferenciaId?: string; // Elo de ligação para transferências casadas
   criadoEm: number;
 }
 
@@ -99,18 +96,15 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   const [movimentacoes, setMovimentacoes] = useState<Movimentacao[]>(carregarMovimentacoes);
   const [categorias, setCategorias] = useState<Categoria[]>(carregarCategorias);
 
-  // FUNÇÃO MÁGICA: Padroniza datas antigas ou mal formatadas para o padrão ISO (YYYY-MM-DD)
   useEffect(() => {
     let houveMudanca = false;
     const novasMovimentacoes = movimentacoes.map(m => {
-      // 1. Corrige formato manual antigo (DD/MM/YYYY) para ISO
       if (m.data.includes("/")) {
         const [dia, mes, ano] = m.data.split("/");
         const dataNova = `${ano}-${mes}-${dia}`;
         houveMudanca = true;
         return { ...m, data: dataNova };
       }
-      // 2. Garante que datas ISO tenham zeros à esquerda (ex: 2024-7-9 -> 2024-07-09)
       const partesData = m.data.split("-");
       if (partesData.length === 3) {
         const ano = partesData[0];
@@ -130,20 +124,15 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     }
   }, [movimentacoes]);
 
-  // FUNÇÃO DE UNIFICAÇÃO: Resolve o problema de categorias duplicadas (ex: Combustível com 2 IDs)
   useEffect(() => {
     const nomesParaUnificar = ["Combustível", "Combustivel", "Alimentação", "Alimentacao", "Pessoal"];
     let houveMudanca = false;
 
-    // 1. Identifica categorias que devem ser unificadas com as categorias padrão (cat-xxx)
     const categoriasMapeadas = categorias.map(c => {
       const nomeLimpo = c.nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-      
-      // Se for uma categoria customizada que tem nome igual a uma padrão, vamos marcar para migrar
       const padraoCorrespondente = CATEGORIAS_PADRAO.find(cp => 
         cp.nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === nomeLimpo
       );
-
       if (padraoCorrespondente && c.id !== padraoCorrespondente.id) {
         return { antigoId: c.id, novoId: padraoCorrespondente.id };
       }
@@ -151,7 +140,6 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     }).filter(Boolean) as { antigoId: string, novoId: string }[];
 
     if (categoriasMapeadas.length > 0) {
-      // 2. Move os lançamentos das categorias duplicadas para as oficiais
       const novasMovs = movimentacoes.map(m => {
         const mapeamento = categoriasMapeadas.find(map => map.antigoId === m.categoriaId);
         if (mapeamento) {
@@ -160,8 +148,6 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         }
         return m;
       });
-
-      // 3. Remove as categorias duplicadas da lista de categorias
       const IDsAntigos = categoriasMapeadas.map(map => map.antigoId);
       const novasCats = categorias.filter(c => !IDsAntigos.includes(c.id));
 
@@ -179,7 +165,17 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     setMovimentacoes((prev) => [{ ...dados, id: gerarId(), criadoEm: Date.now() }, ...prev]);
   }, []);
 
-  const remover = useCallback((id: string) => { setMovimentacoes((prev) => prev.filter((m) => m.id !== id)); }, []);
+  // REMOÇÃO CASADA: Deleta o item selecionado e o seu irmão gêmeo de transferência se houver
+  const remover = useCallback((id: string) => { 
+    setMovimentacoes((prev) => {
+      const itemAlvo = prev.find(m => m.id === id);
+      if (itemAlvo && itemAlvo.transferenciaId) {
+        // Remove ambos que compartilham o mesmo token de transferência
+        return prev.filter((m) => m.transferenciaId !== itemAlvo.transferenciaId);
+      }
+      return prev.filter((m) => m.id !== id);
+    }); 
+  }, []);
 
   const adicionarCategoria = useCallback((dados: Omit<Categoria, "id" | "criadoEm">) => {
     setCategorias((prev) => [{ ...dados, id: gerarId(), escopo: "ambos", criadoEm: Date.now() }, ...prev]);
@@ -194,11 +190,12 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const obterCategoriasPorTabela = useCallback((tabela: Tabela) => categorias, [categorias]);
-
   const obterCategoriaPorId = useCallback((id: string) => categorias.find((c) => c.id === id), [categorias]);
 
-  const executarTransferencia = useCallback((origem: string, destino: string, valor: number) => {
+  // EXECUÇÃO DE TRANSFERÊNCIA BLINDADA COM ID ÚNICO E VALORES POSITIVOS (O saldo calcula a direção pelo texto)
+  const ejecutarTransferencia = useCallback((origem: string, destino: string, valor: number) => {
     const dataHoje = hojeISO();
+    const tokenTransf = `transf-${gerarId()}`; // Código elo de amarração
 
     const obterTabelaFisica = (idConta: string): Tabela => {
       if (idConta === "giro") return "giro";
@@ -212,24 +209,30 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       return "Fundo de Reserva";
     };
 
-    // 1. Lançamento de saída da conta origem (Neutro)
-    adicionar({
+    const movOrigem: Movimentacao = {
+      id: gerarId(),
       tabela: obterTabelaFisica(origem),
       data: dataHoje,
       descricao: `Transf. para ${nomeContaFormatado(destino)}`,
       categoriaId: "cat-transferencia",
-      valor: valor
-    });
+      valor: valor,
+      transferenciaId: tokenTransf,
+      criadoEm: Date.now()
+    };
 
-    // 2. Lançamento de entrada na conta destino (Neutro)
-    adicionar({
+    const movDestino: Movimentacao = {
+      id: gerarId(),
       tabela: obterTabelaFisica(destino),
       data: dataHoje,
       descricao: `Transf. de ${nomeContaFormatado(origem)}`,
       categoriaId: "cat-transferencia",
-      valor: valor
-    });
-  }, [adicionar]);
+      valor: valor,
+      transferenciaId: tokenTransf,
+      criadoEm: Date.now()
+    };
+
+    setMovimentacoes((prev) => [movOrigem, movDestino, ...prev]);
+  }, []);
 
   const exportarBackup = () => {
     const backup = { movimentacoes, categorias, data: new Date().toISOString() };
@@ -279,19 +282,15 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const cat = obterCategoriaPorId(m.categoriaId);
     const isFundoReserva = cat?.nome === "Fundo de Reserva";
     
-    // Se for na tabela reserva, conta tudo
     if (m.tabela === "reserva") {
       if (cat?.tipo === "transferencia") {
         return m.descricao.startsWith("Transf. para") ? acc - m.valor : acc + m.valor;
       }
       return acc + (cat?.tipo === "credito" ? m.valor : -m.valor);
     }
-    
-    // Se for lançamento em outra tabela mas com a categoria "Fundo de Reserva" (legado)
     if (isFundoReserva) {
       return acc + (cat?.tipo === "credito" ? m.valor : -m.valor);
     }
-    
     return acc;
   }, 0);
 
@@ -342,4 +341,3 @@ export function useFinance() {
   if (!ctx) throw new Error("useFinance deve ser usado dentro de FinanceProvider");
   return ctx;
 }
-
