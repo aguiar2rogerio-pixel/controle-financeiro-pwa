@@ -275,12 +275,24 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     return acc + (cat?.tipo === "credito" ? m.valor : -m.valor);
   }, 0);
 
-  const saldoReserva = movimentacoes.filter(m => m.tabela === "reserva").reduce((acc, m) => {
+  const saldoReserva = movimentacoes.reduce((acc, m) => {
     const cat = obterCategoriaPorId(m.categoriaId);
-    if (cat?.tipo === "transferencia") {
-      return m.descricao.startsWith("Transf. para") ? acc - m.valor : acc + m.valor;
+    const isFundoReserva = cat?.nome === "Fundo de Reserva";
+    
+    // Se for na tabela reserva, conta tudo
+    if (m.tabela === "reserva") {
+      if (cat?.tipo === "transferencia") {
+        return m.descricao.startsWith("Transf. para") ? acc - m.valor : acc + m.valor;
+      }
+      return acc + (cat?.tipo === "credito" ? m.valor : -m.valor);
     }
-    return acc + (cat?.tipo === "credito" ? m.valor : -m.valor);
+    
+    // Se for lançamento em outra tabela mas com a categoria "Fundo de Reserva" (legado)
+    if (isFundoReserva) {
+      return acc + (cat?.tipo === "credito" ? m.valor : -m.valor);
+    }
+    
+    return acc;
   }, 0);
 
   const totalManutencao = movimentacoes.filter(m => obterCategoriaPorId(m.categoriaId)?.nome === "Manutenção").reduce((acc, m) => {

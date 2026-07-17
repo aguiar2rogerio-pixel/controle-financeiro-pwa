@@ -147,42 +147,33 @@ export default function Home() {
           </CardContent>
         </Card>
 
-        <Card className="bg-[#1e2230] border-gray-800 shadow-xl">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div>
-              <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider">Fundo de Reserva (Poupança)</p>
-              <h2 className="text-3xl font-extrabold text-emerald-400 mt-1">R$ {saldoReserva.toFixed(2).replace(".", ",")}</h2>
-            </div>
-            <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-400">
-              <Plus className="h-6 w-6" />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Painel de Manutenção com Pílulas Históricas */}
         <Card className="bg-[#1e2230] border-gray-800 shadow-xl overflow-hidden">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider">Manutenção (Mês Atual)</p>
-                <h2 className="text-2xl font-extrabold text-white mt-1">R$ {exibicaoManutencao.toFixed(2).replace(".", ",")}</h2>
+          <CardContent className="p-0">
+            <div className="grid grid-cols-2 divide-x divide-gray-800">
+              <div className="p-5">
+                <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider">Reserva</p>
+                <h2 className="text-xl font-extrabold text-emerald-400 mt-1">R$ {saldoReserva.toFixed(2).replace(".", ",")}</h2>
               </div>
-              <div className="p-2.5 bg-gray-500/10 rounded-lg text-gray-400">
-                <Settings className="h-5 w-5" />
+              <div className="p-5">
+                <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider">Manutenção</p>
+                <h2 className="text-xl font-extrabold text-white mt-1">R$ {exibicaoManutencao.toFixed(2).replace(".", ",")}</h2>
               </div>
             </div>
             
-            {/* Pílulas de Histórico */}
-            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-              {manutencaoPorMes.map((item, idx) => (
-                <div key={idx} className="flex-shrink-0 bg-[#12141c] border border-gray-800 rounded-full px-4 py-1.5">
-                  <span className="text-[10px] font-bold text-gray-500 uppercase mr-2">{item.mes}</span>
-                  <span className="text-xs font-black text-gray-200">R$ {Math.abs(item.total).toFixed(2).replace(".", ",")}</span>
-                </div>
-              ))}
-              {manutencaoPorMes.length === 0 && (
-                <p className="text-[10px] text-gray-600 italic">Nenhum histórico de manutenção.</p>
-              )}
+            {/* Pílulas de Histórico de Manutenção */}
+            <div className="px-5 pb-5">
+              <p className="text-[9px] font-bold text-gray-600 uppercase mb-2 tracking-widest">Histórico de Manutenção</p>
+              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                {manutencaoPorMes.map((item, idx) => (
+                  <div key={idx} className="flex-shrink-0 bg-[#12141c] border border-gray-800 rounded-full px-3 py-1">
+                    <span className="text-[9px] font-bold text-gray-500 uppercase mr-1.5">{item.mes}</span>
+                    <span className="text-[11px] font-black text-gray-200">R$ {Math.abs(item.total).toFixed(2).replace(".", ",")}</span>
+                  </div>
+                ))}
+                {manutencaoPorMes.length === 0 && (
+                  <p className="text-[10px] text-gray-600 italic">Nenhum histórico.</p>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
