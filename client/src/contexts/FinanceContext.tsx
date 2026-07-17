@@ -193,7 +193,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   const obterCategoriaPorId = useCallback((id: string) => categorias.find((c) => c.id === id), [categorias]);
 
   // EXECUÇÃO DE TRANSFERÊNCIA BLINDADA COM ID ÚNICO E VALORES POSITIVOS (O saldo calcula a direção pelo texto)
-  const ejecutarTransferencia = useCallback((origem: string, destino: string, valor: number) => {
+  const executarTransferencia = useCallback((origem: string, destino: string, valor: number) => {
     const dataHoje = hojeISO();
     const tokenTransf = `transf-${gerarId()}`; // Código elo de amarração
 
