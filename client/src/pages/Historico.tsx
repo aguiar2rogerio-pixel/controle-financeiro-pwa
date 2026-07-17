@@ -17,22 +17,32 @@ export default function Historico() {
   // Estados para o Pop-up de Edição
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editId, setEditId] = useState("");
-  const [editTabela, setEditTabela] = useState<"fluxo" | "giro">("fluxo");
+  const [editTabela, setEditTabela] = useState<"fluxo" | "giro" | "reserva">("fluxo");
   const [editDescricao, setEditDescricao] = useState("");
   const [editCategoriaId, setEditCategoriaId] = useState("");
   const [editValor, setEditValor] = useState("");
   const [editData, setEditData] = useState("");
 
-  // Handler para remoção real
+  // Handler para remoção casada automática
   const handleDeletar = (id: string) => {
-    if (confirm("Tem certeza que deseja deletar este lançamento definitivamente?")) {
+    const item = movimentacoes.find(m => m.id === id);
+    const msg = item?.transferenciaId 
+      ? "Este lançamento faz parte de uma transferência. Deletar este registro removerá a contraparte automaticamente. Confirma?"
+      : "Tem certeza que deseja deletar este lançamento definitivamente?";
+
+    if (confirm(msg)) {
       remover(id);
-      alert("Lançamento removido com sucesso!");
+      alert("Removido com sucesso!");
     }
   };
 
-  // Handler para abrir o formulário de edição carregando os dados antigos
   const abrirEdicao = (m: any) => {
+    const cat = categorias.find((c) => c.id === m.categoriaId);
+    if (cat?.tipo === "transferencia" || m.transferenciaId) {
+      alert("Para garantir a precisão dos saldos, transferências não podem ser editadas diretamente. Por favor, delete o registro e refaça a transferência com o valor correto.");
+      return;
+    }
+
     setEditId(m.id);
     setEditTabela(m.tabela);
     setEditDescricao(m.descricao);
@@ -42,7 +52,6 @@ export default function Historico() {
     setIsEditOpen(true);
   };
 
-  // Handler para salvar a edição (Remove o antigo e adiciona o modificado)
   const handleSalvarEdicao = (e: React.FormEvent) => {
     e.preventDefault();
     const valorNum = parseFloat(editValor.replace(",", "."));
@@ -51,7 +60,6 @@ export default function Historico() {
       return;
     }
     
-    // Substituição segura no banco local
     remover(editId);
     adicionar({ 
       tabela: editTabela, 
@@ -65,28 +73,24 @@ export default function Historico() {
     alert("Lançamento atualizado com sucesso!");
   };
 
-  // Categorias filtradas para o pop-up de edição
   const categoriasEdicaoFiltradas = useMemo(() => {
     const itemAntigo = movimentacoes.find(m => m.id === editId);
     const catAntiga = categorias.find(c => c.id === itemAntigo?.categoriaId);
     return categorias.filter(c => c.tipo === catAntiga?.tipo);
   }, [categorias, editId, movimentacoes]);
 
-  // Lógica de filtragem corrigida e robusta
+  // Lógica de filtragem robusta
   const movimentacoesFiltradas = useMemo(() => {
     return (movimentacoes || [])
       .filter((m) => {
         const cat = categorias.find((c) => c.id === m.categoriaId);
         
-        // Filtro por Categoria e Tipo
         if (filtroCategoria !== "todos" && m.categoriaId !== filtroCategoria) return false;
         
-        // LIMPEZA: Oculta transferências internas quando filtra especificamente por Entradas ou Saídas
         if (filtroTipo === "credito" && cat?.tipo !== "credito") return false;
         if (filtroTipo === "debito" && cat?.tipo !== "debito") return false;
-        if (filtroTipo === "todos" && cat?.tipo === "transferencia" && filtroCategoria === "todos") return true; // Mostra no geral
+        if (filtroTipo === "todos" && cat?.tipo === "transferencia" && filtroCategoria === "todos") return true;
         
-        // Filtro de Datas (Comparação segura por objetos Date)
         const dataLancamento = new Date(m.data + 'T00:00:00');
         const inicioPeriodo = dataInicial ? new Date(dataInicial + 'T00:00:00') : null;
         const fimPeriodo = dataFinal ? new Date(dataFinal + 'T23:59:59') : null;
@@ -96,14 +100,19 @@ export default function Historico() {
 
         return true;
       })
-      // ORGANIZAÇÃO: Deixa sempre o mais recente no topo
       .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
   }, [movimentacoes, categorias, filtroCategoria, filtroTipo, dataInicial, dataFinal]);
 
-  // Cálculo do Saldo Filtrado Realista
+  // TOTALIZADOR DO FILTRO CORRIGIDO: Neutraliza transferências se olhar o contexto global
   const saldoFiltrado = useMemo(() => {
     return movimentacoesFiltradas.reduce((acc, m) => {
       const cat = categorias.find((c) => c.id === m.categoriaId);
+      
+      if (cat?.tipo === "transferencia") {
+        // Se o usuário filtrou por uma categoria específica de transferência, calcula a direção real pelo texto
+        return m.descricao.startsWith("Transf. para") ? acc - m.valor : acc + m.valor;
+      }
+      
       return cat?.tipo === "credito" ? acc + m.valor : acc - m.valor;
     }, 0);
   }, [movimentacoesFiltradas, categorias]);
@@ -160,7 +169,6 @@ export default function Historico() {
           </div>
         </div>
 
-        {/* Filtro por Período de Datas */}
         <div>
           <label className="text-[10px] font-bold text-gray-500 block mb-1 uppercase">Filtrar por Período</label>
           <div className="grid grid-cols-2 gap-3">
@@ -227,7 +235,6 @@ export default function Historico() {
             const [ano, mes, dia] = m.data.split("-");
             const dataFormatada = dia && mes ? `${dia}/${mes}` : m.data;
 
-            // Define a cor e o sinal com base no tipo
             let corValor = isCredito ? "text-emerald-400" : "text-rose-400";
             let sinal = isCredito ? "+" : "-";
             
@@ -253,15 +260,17 @@ export default function Historico() {
                   </span>
                 </div>
 
-                {/* Painel de Ações Duplo */}
                 <div className="flex justify-end gap-2 pt-2 border-t border-gray-800/40">
-                  <Button
-                    onClick={() => abrirEdicao(m)}
-                    variant="ghost"
-                    className="h-9 px-4 bg-blue-500/10 hover:bg-blue-600 hover:text-white text-blue-400 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-colors"
-                  >
-                    <Edit2 className="h-3.5 w-3.5" /> Editar
-                  </Button>
+                  {/* Desabilita visualmente o botão de edição se for transferência casada */}
+                  {!m.transferenciaId && (
+                    <Button
+                      onClick={() => abrirEdicao(m)}
+                      variant="ghost"
+                      className="h-9 px-4 bg-blue-500/10 hover:bg-blue-600 hover:text-white text-blue-400 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-colors"
+                    >
+                      <Edit2 className="h-3.5 w-3.5" /> Editar
+                    </Button>
+                  )}
                   <Button
                     onClick={() => handleDeletar(m.id)}
                     variant="ghost"
@@ -276,7 +285,7 @@ export default function Historico() {
         )}
       </div>
 
-      {/* POP-UP / MODAL DE EDIÇÃO REAL DE LANÇAMENTO */}
+      {/* POP-UP / MODAL DE EDIÇÃO REAL */}
       {isEditOpen && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-[#1e2230] border border-gray-800 w-full max-w-sm rounded-xl p-5 shadow-2xl relative">
@@ -319,4 +328,3 @@ export default function Historico() {
     </div>
   );
 }
-
