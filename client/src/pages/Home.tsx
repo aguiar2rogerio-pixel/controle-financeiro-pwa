@@ -281,14 +281,16 @@ export default function Home() {
             ultimosLancamentos.map((m) => {
               const cat = categorias.find(c => c.id === m.categoriaId);
               const isCredito = cat?.tipo === "credito";
-              const isTransferencia = cat?.tipo === "transferencia";
+              const isTransferencia = cat?.tipo === "transferencia" || m.categoriaId === "cat-transferencia";
               
               let corValor = isCredito ? "text-emerald-400" : "text-rose-400";
               let sinal = isCredito ? "+" : "-";
               
+              // CORREÇÃO: Ajusta dinamicamente a cor e o sinal para transferências também na Home
               if (isTransferencia) {
-                corValor = "text-blue-400";
-                sinal = m.descricao.startsWith("Transf. para") ? "-" : "+";
+                const ehDestino = m.descricao.includes("Transf. de");
+                corValor = ehDestino ? "text-emerald-400" : "text-rose-400";
+                sinal = ehDestino ? "+" : "-";
               }
 
               return (
