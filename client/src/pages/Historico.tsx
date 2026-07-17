@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useFinance } from "@/contexts/FinanceContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Trash2, Edit2, Calendar, Filter, DollarSign, X } from "lucide-react";
+import { ArrowLeft, Trash2, Edit2, Filter, DollarSign, X } from "lucide-react";
 import { Link } from "wouter";
 
 export default function Historico() {
@@ -23,7 +23,6 @@ export default function Historico() {
   const [editValor, setEditValor] = useState("");
   const [editData, setEditData] = useState("");
 
-  // Handler para remoção casada automática
   const handleDeletar = (id: string) => {
     const item = movimentacoes.find(m => m.id === id);
     const msg = item?.transferenciaId 
@@ -70,7 +69,7 @@ export default function Historico() {
     });
 
     setIsEditOpen(false);
-    alert("Lançamento atualizado com sucesso!");
+    alert("Lançamento updated com sucesso!");
   };
 
   const categoriasEdicaoFiltradas = useMemo(() => {
@@ -79,7 +78,6 @@ export default function Historico() {
     return categorias.filter(c => c.tipo === catAntiga?.tipo);
   }, [categorias, editId, movimentacoes]);
 
-  // Lógica de filtragem robusta
   const movimentacoesFiltradas = useMemo(() => {
     return (movimentacoes || [])
       .filter((m) => {
@@ -103,13 +101,12 @@ export default function Historico() {
       .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
   }, [movimentacoes, categorias, filtroCategoria, filtroTipo, dataInicial, dataFinal]);
 
-  // TOTALIZADOR DO FILTRO CORRIGIDO: Neutraliza transferências se olhar o contexto global
+  // TOTALIZADOR FILTRADO ATUALIZADO: Evita cálculos duplicados no fluxo geral
   const saldoFiltrado = useMemo(() => {
     return movimentacoesFiltradas.reduce((acc, m) => {
       const cat = categorias.find((c) => c.id === m.categoriaId);
       
       if (cat?.tipo === "transferencia") {
-        // Se o usuário filtrou por uma categoria específica de transferência, calcula a direção real pelo texto
         return m.descricao.startsWith("Transf. para") ? acc - m.valor : acc + m.valor;
       }
       
@@ -120,7 +117,6 @@ export default function Historico() {
   return (
     <div className="min-h-screen bg-[#12141c] text-white p-4 pb-12 font-sans">
       
-      {/* Cabeçalho */}
       <div className="flex items-center gap-3 mb-6">
         <Link href="/">
           <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white rounded-full bg-[#1e2230]">
@@ -133,7 +129,6 @@ export default function Historico() {
         </div>
       </div>
 
-      {/* Painel de Filtros */}
       <div className="bg-[#1e2230] border border-gray-800 rounded-xl p-4 space-y-3 mb-6 shadow-lg">
         <div className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
           <Filter className="h-3.5 w-3.5 text-blue-400" />
@@ -204,7 +199,6 @@ export default function Historico() {
         )}
       </div>
 
-      {/* Card de Saldo Filtrado */}
       <div className="bg-[#1e2230] border border-gray-800 rounded-xl p-4 mb-6 flex items-center justify-between shadow-md">
         <div>
           <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wider">Saldo do Filtro Atual</p>
@@ -217,7 +211,6 @@ export default function Historico() {
         </div>
       </div>
 
-      {/* Lista de Resultados */}
       <div className="space-y-3">
         <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider px-1">
           Lançamentos Encontrados ({movimentacoesFiltradas.length})
@@ -261,7 +254,6 @@ export default function Historico() {
                 </div>
 
                 <div className="flex justify-end gap-2 pt-2 border-t border-gray-800/40">
-                  {/* Desabilita visualmente o botão de edição se for transferência casada */}
                   {!m.transferenciaId && (
                     <Button
                       onClick={() => abrirEdicao(m)}
@@ -285,7 +277,6 @@ export default function Historico() {
         )}
       </div>
 
-      {/* POP-UP / MODAL DE EDIÇÃO REAL */}
       {isEditOpen && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-[#1e2230] border border-gray-800 w-full max-w-sm rounded-xl p-5 shadow-2xl relative">
