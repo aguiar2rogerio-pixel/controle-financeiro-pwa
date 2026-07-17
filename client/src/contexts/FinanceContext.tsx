@@ -127,19 +127,16 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let houveMudanca = false;
 
-    const categoriasMapeadas = categoriesMapped();
-    function categoriesMapped() {
-      return categorias.map(c => {
-        const nomeLimpo = c.nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-        const padraoCorrespondente = CATEGORIAS_PADRAO.find(cp => 
-          cp.nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === nomeLimpo
-        );
-        if (padraoCorrespondente && c.id !== padraoCorrespondente.id) {
-          return { antigoId: c.id, novoId: padraoCorrespondente.id };
-        }
-        return null;
-      }).filter(Boolean) as { antigoId: string, novoId: string }[];
-    }
+    const categoriasMapeadas = categorias.map(c => {
+      const nomeLimpo = c.nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+      const padraoCorrespondente = CATEGORIAS_PADRAO.find(cp => 
+        cp.nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === nomeLimpo
+      );
+      if (padraoCorrespondente && c.id !== padraoCorrespondente.id) {
+        return { antigoId: c.id, novoId: padraoCorrespondente.id };
+      }
+      return null;
+    }).filter(Boolean) as { antigoId: string, novoId: string }[];
 
     if (categoriasMapeadas.length > 0) {
       const novasMovs = movimentacoes.map(m => {
@@ -219,6 +216,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       criadoEm: Date.now()
     };
 
+    // ALTERAÇÃO AQUI: Destino entra temporariamente como cat-receita se for listado de forma genérica, ou mantemos para tratamento visual posterior.
     const movDestino: Movimentacao = {
       id: gerarId(),
       tabela: obterTabelaFisica(destino),
@@ -234,7 +232,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const exportarBackup = () => {
-    const backup = { movimentacoes, categorias, data: new Date().toISOString() };
+    const backup = { movimentacoes, categories: categorias, data: new Date().toISOString() };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -250,9 +248,8 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       try {
         const dados = JSON.parse(e.target?.result as string);
         if (dados.movimentacoes && dados.categorias) {
-          const categoriesTreated = dados.categorias.map((c: any) => ({ ...c, escopo: "ambos" }));
           setMovimentacoes(dados.movimentacoes);
-          setCategorias(categoriesTreated);
+          setCategorias(dados.categorias.map((c: any) => ({ ...c, escopo: "ambos" })));
           alert("Backup restaurado com sucesso!");
           window.location.reload();
         } else { alert("Arquivo inválido!"); }
@@ -261,7 +258,6 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     reader.readAsText(file);
   };
 
-  // CORREÇÃO: Força sinal positivo se a descrição contiver "Transf. de"
   const saldoFluxo = useMemo(() => {
     return movimentacoes
       .filter((m) => m.tabela === "fluxo")
@@ -274,7 +270,6 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       }, 0);
   }, [movimentacoes, categorias]);
 
-  // CORREÇÃO: Força sinal positivo se a descrição contiver "Transf. de"
   const saldoGiro = useMemo(() => {
     return movimentacoes
       .filter((m) => m.tabela === "giro")
@@ -287,11 +282,10 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       }, 0);
   }, [movimentacoes, categorias]);
 
-  // CORREÇÃO: Força sinal positivo se a descrição contiver "Transf. de"
   const saldoReserva = useMemo(() => {
     return movimentacoes
       .reduce((acc, m) => {
-        const cat = cosmosCategory(m);
+        const cat = categorias.find((c) => c.id === m.categoriaId);
         const ehFundoReserva = m.tabela === "reserva" || cat?.id === "cat-fundo-reserva" || cat?.nome === "Fundo de Reserva";
         
         if (!ehFundoReserva) return acc;
@@ -301,10 +295,6 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         }
         return acc + (cat?.tipo === "credito" ? m.valor : -m.valor);
       }, 0);
-
-      function cosmosCategory(m: Movimentacao) {
-        return categorias.find((c) => c.id === m.categoriaId);
-      }
   }, [movimentacoes, categorias]);
 
   const totalManutencao = useMemo(() => {
