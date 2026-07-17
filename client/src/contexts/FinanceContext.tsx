@@ -6,7 +6,7 @@
  * Duas tabelas: "fluxo" (Controle Fluxo Diário) e "giro" (Capital de Giro Operacional).
  */
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
 import { hojeISO } from "@/lib/format";
 
 export type Tabela = "fluxo" | "giro" | "reserva";
