@@ -127,16 +127,19 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let houveMudanca = false;
 
-    const categoriasMapeadas = categorias.map(c => {
-      const nomeLimpo = c.nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-      const padraoCorrespondente = CATEGORIAS_PADRAO.find(cp => 
-        cp.nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === nomeLimpo
-      );
-      if (padraoCorrespondente && c.id !== padraoCorrespondente.id) {
-        return { antigoId: c.id, novoId: padraoCorrespondente.id };
-      }
-      return null;
-    }).filter(Boolean) as { antigoId: string, novoId: string }[];
+    const categoriasMapeadas = categoriesMapped();
+    function categoriesMapped() {
+      return categorias.map(c => {
+        const nomeLimpo = c.nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        const padraoCorrespondente = CATEGORIAS_PADRAO.find(cp => 
+          cp.nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === nomeLimpo
+        );
+        if (padraoCorrespondente && c.id !== padraoCorrespondente.id) {
+          return { antigoId: c.id, novoId: padraoCorrespondente.id };
+        }
+        return null;
+      }).filter(Boolean) as { antigoId: string, novoId: string }[];
+    }
 
     if (categoriasMapeadas.length > 0) {
       const novasMovs = movimentacoes.map(m => {
@@ -247,9 +250,9 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       try {
         const dados = JSON.parse(e.target?.result as string);
         if (dados.movimentacoes && dados.categorias) {
-          const categoriasTratadas = dados.categorias.map((c: any) => ({ ...c, escopo: "ambos" }));
+          const categoriesTreated = dados.categorias.map((c: any) => ({ ...c, escopo: "ambos" }));
           setMovimentacoes(dados.movimentacoes);
-          setCategorias(categoriasTratadas);
+          setCategorias(categoriesTreated);
           alert("Backup restaurado com sucesso!");
           window.location.reload();
         } else { alert("Arquivo inválido!"); }
@@ -258,44 +261,50 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     reader.readAsText(file);
   };
 
+  // CORREÇÃO: Força sinal positivo se a descrição contiver "Transf. de"
   const saldoFluxo = useMemo(() => {
     return movimentacoes
       .filter((m) => m.tabela === "fluxo")
       .reduce((acc, m) => {
         const cat = categorias.find((c) => c.id === m.categoriaId);
-        if (cat?.tipo === "transferencia") {
-          return m.descricao.startsWith("Transf. para") ? acc - m.valor : acc + m.valor;
+        if (cat?.tipo === "transferencia" || m.categoriaId === "cat-transferencia") {
+          return m.descricao.includes("Transf. para") ? acc - m.valor : acc + m.valor;
         }
         return acc + (cat?.tipo === "credito" ? m.valor : -m.valor);
       }, 0);
   }, [movimentacoes, categorias]);
 
+  // CORREÇÃO: Força sinal positivo se a descrição contiver "Transf. de"
   const saldoGiro = useMemo(() => {
     return movimentacoes
       .filter((m) => m.tabela === "giro")
       .reduce((acc, m) => {
         const cat = categorias.find((c) => c.id === m.categoriaId);
-        if (cat?.tipo === "transferencia") {
-          return m.descricao.startsWith("Transf. para") ? acc - m.valor : acc + m.valor;
+        if (cat?.tipo === "transferencia" || m.categoriaId === "cat-transferencia") {
+          return m.descricao.includes("Transf. para") ? acc - m.valor : acc + m.valor;
         }
         return acc + (cat?.tipo === "credito" ? m.valor : -m.valor);
       }, 0);
   }, [movimentacoes, categorias]);
 
-  // CORREÇÃO: Resgata lançamentos antigos baseados na categoria "Fundo de Reserva" para não zerar o card
+  // CORREÇÃO: Força sinal positivo se a descrição contiver "Transf. de"
   const saldoReserva = useMemo(() => {
     return movimentacoes
       .reduce((acc, m) => {
-        const cat = categorias.find((c) => c.id === m.categoriaId);
+        const cat = cosmosCategory(m);
         const ehFundoReserva = m.tabela === "reserva" || cat?.id === "cat-fundo-reserva" || cat?.nome === "Fundo de Reserva";
         
         if (!ehFundoReserva) return acc;
 
-        if (cat?.tipo === "transferencia") {
-          return m.descricao.startsWith("Transf. para") ? acc - m.valor : acc + m.valor;
+        if (cat?.tipo === "transferencia" || m.categoriaId === "cat-transferencia") {
+          return m.descricao.includes("Transf. para") ? acc - m.valor : acc + m.valor;
         }
         return acc + (cat?.tipo === "credito" ? m.valor : -m.valor);
       }, 0);
+
+      function cosmosCategory(m: Movimentacao) {
+        return categorias.find((c) => c.id === m.categoriaId);
+      }
   }, [movimentacoes, categorias]);
 
   const totalManutencao = useMemo(() => {
@@ -312,8 +321,8 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       
       if (!ehFundoReserva) return acc;
 
-      if (cat?.tipo === "transferencia") {
-        return m.descricao.startsWith("Transf. para") ? acc - m.valor : acc + m.valor;
+      if (cat?.tipo === "transferencia" || m.categoriaId === "cat-transferencia") {
+        return m.descricao.includes("Transf. para") ? acc - m.valor : acc + m.valor;
       }
       return acc + (cat?.tipo === "credito" ? m.valor : -m.valor);
     }, 0);
