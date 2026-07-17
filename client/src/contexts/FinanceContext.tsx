@@ -77,7 +77,7 @@ interface FinanceContextValue {
   adicionarCategoria: (dados: Omit<Categoria, "id" | "criadoEm">) => void;
   editarCategoria: (id: string, dados: Partial<Omit<Categoria, "id" | "criadoEm">>) => void;
   removerCategoria: (id: string) => void;
-  obterCategoriasPorTabela: (tabela: Tabela) => Categoria[];
+  obterCategoriasPorTabela = (tabela: Tabela) => Categoria[];
   obterCategoriaPorId: (id: string) => Categoria | undefined;
   saldoFluxo: number;
   saldoGiro: number;
@@ -125,7 +125,6 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   }, [movimentacoes]);
 
   useEffect(() => {
-    const nomesParaUnificar = ["Combustível", "Combustivel", "Alimentação", "Alimentacao", "Pessoal"];
     let houveMudanca = false;
 
     const categoriasMapeadas = categorias.map(c => {
@@ -165,12 +164,10 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     setMovimentacoes((prev) => [{ ...dados, id: gerarId(), criadoEm: Date.now() }, ...prev]);
   }, []);
 
-  // REMOÇÃO CASADA: Deleta o item selecionado e o seu irmão gêmeo de transferência se houver
   const remover = useCallback((id: string) => { 
     setMovimentacoes((prev) => {
       const itemAlvo = prev.find(m => m.id === id);
       if (itemAlvo && itemAlvo.transferenciaId) {
-        // Remove ambos que compartilham o mesmo token de transferência
         return prev.filter((m) => m.transferenciaId !== itemAlvo.transferenciaId);
       }
       return prev.filter((m) => m.id !== id);
@@ -189,13 +186,12 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     setCategorias((prev) => prev.filter((c) => c.id !== id));
   }, []);
 
-  const obterCategoriasPorTabela = useCallback((tabela: Tabela) => categorias, [categorias]);
+  const obterCategoriasPorTabela = useCallback(() => categorias, [categorias]);
   const obterCategoriaPorId = useCallback((id: string) => categorias.find((c) => c.id === id), [categorias]);
 
-  // EXECUÇÃO DE TRANSFERÊNCIA BLINDADA COM ID ÚNICO E VALORES POSITIVOS (O saldo calcula a direção pelo texto)
   const executarTransferencia = useCallback((origem: string, destino: string, valor: number) => {
     const dataHoje = hojeISO();
-    const tokenTransf = `transf-${gerarId()}`; // Código elo de amarração
+    const tokenTransf = `transf-${gerarId()}`;
 
     const obterTabelaFisica = (idConta: string): Tabela => {
       if (idConta === "giro") return "giro";
@@ -262,56 +258,66 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     reader.readAsText(file);
   };
 
-  const saldoFluxo = movimentacoes.filter(m => m.tabela === "fluxo").reduce((acc, m) => {
-    const cat = obterCategoriaPorId(m.categoriaId);
-    if (cat?.tipo === "transferencia") {
-      return m.descricao.startsWith("Transf. para") ? acc - m.valor : acc + m.valor;
-    }
-    return acc + (cat?.tipo === "credito" ? m.valor : -m.valor);
-  }, 0);
+  // --- CÁLCULO DE SALDOS COM MATRIZ DE MEMÓRIA ATUALIZADA E SINAIS CORRIGIDOS ---
 
-  const saldoGiro = movimentacoes.filter(m => m.tabela === "giro").reduce((acc, m) => {
-    const cat = obterCategoriaPorId(m.categoriaId);
-    if (cat?.tipo === "transferencia") {
-      return m.descricao.startsWith("Transf. para") ? acc - m.valor : acc + m.valor;
-    }
-    return acc + (cat?.tipo === "credito" ? m.valor : -m.valor);
-  }, 0);
+  const saldoFluxo = useMemo(() => {
+    return movimentacoes
+      .filter((m) => m.tabela === "fluxo")
+      .reduce((acc, m) => {
+        const cat = categorias.find((c) => c.id === m.categoriaId);
+        if (cat?.tipo === "transferencia") {
+          return m.descricao.startsWith("Transf. para") ? acc - m.valor : acc + m.valor;
+        }
+        return acc + (cat?.tipo === "credito" ? m.valor : -m.valor);
+      }, 0);
+  }, [movimentacoes, categorias]);
 
-  const saldoReserva = movimentacoes.reduce((acc, m) => {
-    const cat = obterCategoriaPorId(m.categoriaId);
-    const isFundoReserva = cat?.nome === "Fundo de Reserva";
-    
-    if (m.tabela === "reserva") {
-      if (cat?.tipo === "transferencia") {
-        return m.descricao.startsWith("Transf. para") ? acc - m.valor : acc + m.valor;
-      }
+  const saldoGiro = useMemo(() => {
+    return movimentacoes
+      .filter((m) => m.tabela === "giro")
+      .reduce((acc, m) => {
+        const cat = categorias.find((c) => c.id === m.categoriaId);
+        if (cat?.tipo === "transferencia") {
+          return m.descricao.startsWith("Transf. para") ? acc - m.valor : acc + m.valor;
+        }
+        return acc + (cat?.tipo === "credito" ? m.valor : -m.valor);
+      }, 0);
+  }, [movimentacoes, categorias]);
+
+  const saldoReserva = useMemo(() => {
+    return movimentacoes
+      .filter((m) => m.tabela === "reserva")
+      .reduce((acc, m) => {
+        const cat = categorias.find((c) => c.id === m.categoriaId);
+        if (cat?.tipo === "transferencia") {
+          return m.descricao.startsWith("Transf. para") ? acc - m.valor : acc + m.valor;
+        }
+        return acc + (cat?.tipo === "credito" ? m.valor : -m.valor);
+      }, 0);
+  }, [movimentacoes, categorias]);
+
+  const totalManutencao = useMemo(() => {
+    return movimentacoes.filter(m => categorias.find(c => c.id === m.categoriaId)?.nome === "Manutenção").reduce((acc, m) => {
+      const cat = categorias.find(c => c.id === m.categoriaId);
       return acc + (cat?.tipo === "credito" ? m.valor : -m.valor);
-    }
-    if (isFundoReserva) {
+    }, 0);
+  }, [movimentacoes, categorias]);
+
+  const totalFundoReserva = useMemo(() => {
+    return movimentacoes.filter(m => categorias.find(c => c.id === m.categoriaId)?.nome === "Fundo de Reserva").reduce((acc, m) => {
+      const cat = categorias.find(c => c.id === m.categoriaId);
       return acc + (cat?.tipo === "credito" ? m.valor : -m.valor);
-    }
-    return acc;
-  }, 0);
-
-  const totalManutencao = movimentacoes.filter(m => obterCategoriaPorId(m.categoriaId)?.nome === "Manutenção").reduce((acc, m) => {
-    const cat = obterCategoriaPorId(m.categoriaId);
-    return acc + (cat?.tipo === "credito" ? m.valor : -m.valor);
-  }, 0);
-
-  const totalFundoReserva = movimentacoes.filter(m => obterCategoriaPorId(m.categoriaId)?.nome === "Fundo de Reserva").reduce((acc, m) => {
-    const cat = obterCategoriaPorId(m.categoriaId);
-    return acc + (cat?.tipo === "credito" ? m.valor : -m.valor);
-  }, 0);
+    }, 0);
+  }, [movimentacoes, categorias]);
 
   const manutencaoPorMes = useMemo(() => {
     const meses: { [key: string]: number } = {};
     movimentacoes
-      .filter(m => obterCategoriaPorId(m.categoriaId)?.nome === "Manutenção")
+      .filter(m => categorias.find(c => c.id === m.categoriaId)?.nome === "Manutenção")
       .forEach(m => {
         const [ano, mes] = m.data.split("-");
         const chave = `${mes}/${ano}`;
-        const cat = obterCategoriaPorId(m.categoriaId);
+        const cat = categorias.find(c => c.id === m.categoriaId);
         const valor = cat?.tipo === "credito" ? m.valor : -m.valor;
         meses[chave] = (meses[chave] || 0) + valor;
       });
@@ -323,7 +329,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         const [mB, aB] = b.mes.split("/");
         return new Date(parseInt(aB), parseInt(mB)-1).getTime() - new Date(parseInt(aA), parseInt(mA)-1).getTime();
       });
-  }, [movimentacoes, obterCategoriaPorId]);
+  }, [movimentacoes, categorias]);
 
   return (
     <FinanceContext.Provider value={{ 
