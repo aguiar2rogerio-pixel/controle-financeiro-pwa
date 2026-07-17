@@ -69,7 +69,7 @@ export default function Historico() {
     });
 
     setIsEditOpen(false);
-    alert("Lançamento updated com sucesso!");
+    alert("Lançamento atualizado com sucesso!");
   };
 
   const categoriasEdicaoFiltradas = useMemo(() => {
@@ -101,7 +101,6 @@ export default function Historico() {
       .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
   }, [movimentacoes, categorias, filtroCategoria, filtroTipo, dataInicial, dataFinal]);
 
-  // TOTALIZADOR FILTRADO ATUALIZADO: Evita cálculos duplicados no fluxo geral
   const saldoFiltrado = useMemo(() => {
     return movimentacoesFiltradas.reduce((acc, m) => {
       const cat = categorias.find((c) => c.id === m.categoriaId);
