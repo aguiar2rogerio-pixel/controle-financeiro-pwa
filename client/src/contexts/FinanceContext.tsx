@@ -77,7 +77,7 @@ interface FinanceContextValue {
   adicionarCategoria: (dados: Omit<Categoria, "id" | "criadoEm">) => void;
   editarCategoria: (id: string, dados: Partial<Omit<Categoria, "id" | "criadoEm">>) => void;
   removerCategoria: (id: string) => void;
-  obterCategoriasPorTabela = (tabela: Tabela) => Categoria[];
+  obterCategoriasPorTabela: (tabela: Tabela) => Categoria[];
   obterCategoriaPorId: (id: string) => Categoria | undefined;
   saldoFluxo: number;
   saldoGiro: number;
@@ -186,10 +186,10 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     setCategorias((prev) => prev.filter((c) => c.id !== id));
   }, []);
 
-  const obterCategoriasPorTabela = useCallback(() => categorias, [categorias]);
+  const obterCategoriasPorTabela = useCallback((_tabela: Tabela) => categorias, [categorias]);
   const obterCategoriaPorId = useCallback((id: string) => categorias.find((c) => c.id === id), [categorias]);
 
-  const executarTransferencia = useCallback((origem: string, destino: string, valor: number) => {
+  const ejecutarTransferencia = useCallback((origem: string, destino: string, valor: number) => {
     const dataHoje = hojeISO();
     const tokenTransf = `transf-${gerarId()}`;
 
@@ -257,8 +257,6 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     };
     reader.readAsText(file);
   };
-
-  // --- CÁLCULO DE SALDOS COM MATRIZ DE MEMÓRIA ATUALIZADA E SINAIS CORRIGIDOS ---
 
   const saldoFluxo = useMemo(() => {
     return movimentacoes
@@ -329,7 +327,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         const [mB, aB] = b.mes.split("/");
         return new Date(parseInt(aB), parseInt(mB)-1).getTime() - new Date(parseInt(aA), parseInt(mA)-1).getTime();
       });
-  }, [movimentacoes, categorias]);
+  }, [movimentacoes, ...categorias]);
 
   return (
     <FinanceContext.Provider value={{ 
